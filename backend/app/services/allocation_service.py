@@ -26,7 +26,7 @@ class AllocationService:
     async def run_allocation(self, cycle_id: int) -> dict[str, Any]:
         """Run the full allocation pipeline for a cycle."""
         matches_result = await self.db.execute(select(Match).where(Match.score >= 0.1).order_by(Match.score.desc()))
-        matches = matches_result.scalars().all()
+        matches = list(matches_result.scalars().all())
 
         if not matches:
             logger.warning("No matches found for allocation cycle %d", cycle_id)
@@ -40,7 +40,7 @@ class AllocationService:
         cand_result = await self.db.execute(select(CandidateProfile).where(CandidateProfile.id.in_(cand_ids)))
         candidates = {c.id: c for c in cand_result.scalars().all()}
 
-        allocations, waitlisted = self._solve_allocation(list(matches), opportunities, candidates)
+        allocations, waitlisted = self._solve_allocation(matches, opportunities, candidates)
 
         allocated_count = 0
         for match_id, (candidate_id, opportunity_id) in allocations.items():

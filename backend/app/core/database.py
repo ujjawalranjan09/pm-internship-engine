@@ -1,28 +1,35 @@
-from typing import Any
+"""Async SQLAlchemy engine and session factory."""
+
 from collections.abc import AsyncGenerator
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
-from sqlalchemy.orm import DeclarativeBase
-from app.core.config import settings
+
+from sqlalchemy.ext.asyncio import (
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
+
+from app.core.config import get_settings
+
+settings = get_settings()
 
 engine = create_async_engine(
     settings.DATABASE_URL,
-    echo=False,
-    future=True,
+    pool_size=settings.DB_POOL_SIZE,
+    max_overflow=settings.DB_MAX_OVERFLOW,
+    echo=settings.DB_ECHO,
+    pool_pre_ping=True,
 )
 
-AsyncSessionLocal = async_sessionmaker(
+async_session_factory = async_sessionmaker(
     engine,
     class_=AsyncSession,
     expire_on_commit=False,
 )
 
 
-class Base(DeclarativeBase):
-    pass
-
-
 async def get_async_session() -> AsyncGenerator[AsyncSession, None]:
-    async with AsyncSessionLocal() as session:
+    """Yield an async database session for dependency injection."""
+    async with async_session_factory() as session:
         try:
             yield session
             await session.commit()

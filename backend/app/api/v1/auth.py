@@ -71,7 +71,7 @@ async def refresh_token(payload: TokenRefresh, db: AsyncSession = Depends(get_as
     if user_id is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Could not validate credentials",
+            detail="Invalid token: missing subject",
         )
     result = await db.execute(select(User).where(User.id == int(user_id)))
     user = result.scalar_one_or_none()

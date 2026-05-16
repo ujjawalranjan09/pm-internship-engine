@@ -75,7 +75,7 @@ async def run_allocation(
 async def list_cycles(
     limit: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_async_session),
-) -> Any:
+) -> list[AllocationCycleResponse]:
     """List recent allocation cycles."""
     result = await db.execute(select(AllocationCycle).order_by(AllocationCycle.created_at.desc()).limit(limit))
     cycles = result.scalars().all()
@@ -124,7 +124,7 @@ async def get_cycle_results(
 async def get_cycle_stats(
     cycle_id: int,
     db: AsyncSession = Depends(get_async_session),
-) -> Any:
+) -> AllocationStats:
     """Get aggregate statistics for an allocation cycle."""
     result = await db.execute(select(Allocation).where(Allocation.allocation_cycle_id == cycle_id))
     allocations = result.scalars().all()
