@@ -1,12 +1,26 @@
 """
-Model evaluation metrics for ranking quality and fairness assessment.
+Evaluation Metrics – Ranking Quality Assessment
+=================================================
+
+Computes standard information retrieval metrics for evaluating the
+quality of the matching/ranking pipeline:
+
+    - NDCG (Normalised Discounted Cumulative Gain)
+    - MAP (Mean Average Precision)
+    - MRR (Mean Reciprocal Rank)
+    - Precision@K
+    - Recall@K
+    - Hit Rate@K
+
+These metrics are used during model training, A/B testing, and
+periodic quality audits.
 """
 
 from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 
@@ -14,319 +28,251 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass
-class RankingMetrics:
-    """Ranking quality metrics."""
-    ndcg_at_5: float = 0.0
-    ndcg_at_10: float = 0.0
-    ndcg_at_20: float = 0.0
+class EvaluationResult:
+    """Aggregated evaluation metrics."""
+    ndcg_at_k: Dict[int, float] = field(default_factory=dict)
     map_score: float = 0.0
     mrr: float = 0.0
-    precision_at_5: float = 0.0
-    precision_at_10: float = 0.0
-    recall_at_10: float = 0.0
+    precision_at_k: Dict[int, float] = field(default_factory=dict)
+    recall_at_k: Dict[int, float] = field(default_factory=dict)
+    hit_rate_at_k: Dict[int, float] = field(default_factory=dict)
+    num_queries: int = 0
+    num_relevant_total: int = 0
 
-    def to_dict(self) -> dict[str, float]:
+    def to_dict(self) -> Dict[str, Any]:
         return {
-            "ndcg@5": self.ndcg_at_5,
-            "ndcg@10": self.ndcg_at_10,
-            "ndcg@20": self.ndcg_at_20,
-            "map": self.map_score,
-            "mrr": self.mrr,
-            "precision@5": self.precision_at_5,
-            "precision@10": self.precision_at_10,
-            "recall@10": self.recall_at_10,
+            "ndcg_at_k": {f"ndcg@{k}": round(v, 4) for k, v in self.ndcg_at_k.items()},
+            "map": round(self.map_score, 4),
+            "mrr": round(self.mrr, 4),
+            "precision_at_k": {f"p@{k}": round(v, 4) for k, v in self.precision_at_k.items()},
+            "recall_at_k": {f"r@{k}": round(v, 4) for k, v in self.recall_at_k.items()},
+            "hit_rate_at_k": {f"hr@{k}": round(v, 4) for k, v in self.hit_rate_at_k.items()},
+            "num_queries": self.num_queries,
+            "num_relevant_total": self.num_relevant_total,
         }
 
-
-@dataclass
-class FairnessReport:
-    """Fairness evaluation report."""
-    category_distribution: dict[str, float] = field(default_factory=dict)
-    geographic_distribution: dict[str, float] = field(default_factory=dict)
-    rural_urban_ratio: dict[str, float] = field(default_factory=dict)
-    gini_coefficient: float = 0.0
-    concentration_index: float = 0.0
-    group_parities: dict[str, float] = field(default_factory=dict)
-
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "category_distribution": self.category_distribution,
-            "geographic_distribution": self.geographic_distribution,
-            "rural_urban_ratio": self.rural_urban_ratio,
-            "gini_coefficient": self.gini_coefficient,
-            "concentration_index": self.concentration_index,
-            "group_parities": self.group_parities,
-        }
+    def summary(self) -> str:
+        """One-line summary for logging."""
+        ndcg10 = self.ndcg_at_k.get(10, 0)
+        return (
+            f"NDCG@10={ndcg10:.4f} MAP={self.map_score:.4f} "
+            f"MRR={self.mrr:.4f} queries={self.num_queries}"
+        )
 
 
-@dataclass
-class EvalReport:
-    """Complete evaluation report combining ranking and fairness."""
-    ranking: RankingMetrics
-    fairness: FairnessReport
-    n_samples: int = 0
-    metadata: dict[str, Any] = field(default_factory=dict)
-
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "ranking": self.ranking.to_dict(),
-            "fairness": self.fairness.to_dict(),
-            "n_samples": self.n_samples,
-            "metadata": self.metadata,
-        }
-
-
-def ndcg_at_k(y_true: np.ndarray, y_score: np.ndarray, k: int = 10) -> float:
+class RankingEvaluator:
     """
-    Compute Normalized Discounted Cumulative Gain at K.
+    Computes ranking quality metrics for the matching pipeline.
 
-    NDCG measures ranking quality by rewarding relevant items placed higher.
+    Each "query" is an opportunity, and the "documents" are candidates
+    ranked by the pipeline. Relevance labels come from actual allocation
+    outcomes or manual annotations.
 
-    Args:
-        y_true: Relevance labels (higher = more relevant)
-        y_score: Predicted scores
-        k: Cutoff position
-
-    Returns:
-        NDCG score between 0 and 1
+    Usage:
+        evaluator = RankingEvaluator()
+        result = evaluator.evaluate(
+            ranked_lists=[[("c1", 1.0), ("c2", 0.5), ("c3", 0.0)]],
+            relevance_dicts=[{"c1": 3, "c2": 1, "c3": 0}],
+        )
     """
-    order = np.argsort(y_score)[::-1][:k]
-    y_true_sorted = np.take(y_true, order)
 
-    # DCG
-    gains = 2 ** y_true_sorted - 1
-    discounts = np.log2(np.arange(2, k + 2))
-    dcg = np.sum(gains / discounts)
+    def __init__(self, default_k_values: Optional[List[int]] = None) -> None:
+        self._k_values = default_k_values or [1, 3, 5, 10, 20, 50]
 
-    # Ideal DCG
-    ideal_order = np.argsort(y_true)[::-1][:k]
-    ideal_gains = 2 ** np.take(y_true, ideal_order) - 1
-    idcg = np.sum(ideal_gains / discounts)
+    def evaluate(
+        self,
+        ranked_lists: List[List[Tuple[str, float]]],
+        relevance_dicts: List[Dict[str, float]],
+        k_values: Optional[List[int]] = None,
+    ) -> EvaluationResult:
+        """
+        Evaluate ranking quality across multiple queries.
 
-    if idcg == 0:
+        Args:
+            ranked_lists: Per-query ranked results. Each is a list of
+                (candidate_id, score) sorted by score descending.
+            relevance_dicts: Per-query relevance labels. Each maps
+                candidate_id to relevance (0=irrelevant, higher=more relevant).
+            k_values: K values for @K metrics. Uses defaults if None.
+
+        Returns:
+            EvaluationResult with all metrics.
+        """
+        if len(ranked_lists) != len(relevance_dicts):
+            raise ValueError("ranked_lists and relevance_dicts must have the same length")
+
+        ks = k_values or self._k_values
+        n_queries = len(ranked_lists)
+
+        ndcg_sums = {k: 0.0 for k in ks}
+        precision_sums = {k: 0.0 for k in ks}
+        recall_sums = {k: 0.0 for k in ks}
+        hit_sums = {k: 0.0 for k in ks}
+        ap_sum = 0.0
+        rr_sum = 0.0
+        total_relevant = 0
+
+        for ranked, relevance in zip(ranked_lists, relevance_dicts):
+            ids = [item[0] for item in ranked]
+            rels = np.array([relevance.get(cid, 0) for cid in ids])
+
+            # NDCG@K
+            for k in ks:
+                ndcg_sums[k] += self._ndcg_at_k(rels, k)
+
+            # MAP
+            ap_sum += self._average_precision(rels)
+
+            # MRR
+            rr_sum += self._reciprocal_rank(rels)
+
+            # Precision, Recall, Hit Rate @K
+            num_relevant = sum(1 for v in relevance.values() if v > 0)
+            total_relevant += num_relevant
+
+            for k in ks:
+                top_k_rels = rels[:k]
+                precision_sums[k] += np.sum(top_k_rels > 0) / k
+                if num_relevant > 0:
+                    recall_sums[k] += np.sum(top_k_rels > 0) / num_relevant
+                hit_sums[k] += 1.0 if np.any(top_k_rels > 0) else 0.0
+
+        result = EvaluationResult(
+            ndcg_at_k={k: ndcg_sums[k] / n_queries for k in ks},
+            map_score=ap_sum / n_queries,
+            mrr=rr_sum / n_queries,
+            precision_at_k={k: precision_sums[k] / n_queries for k in ks},
+            recall_at_k={k: recall_sums[k] / n_queries for k in ks},
+            hit_rate_at_k={k: hit_sums[k] / n_queries for k in ks},
+            num_queries=n_queries,
+            num_relevant_total=total_relevant,
+        )
+
+        logger.info("Evaluation complete: %s", result.summary())
+        return result
+
+    def evaluate_binary(
+        self,
+        ranked_lists: List[List[str]],
+        relevant_sets: List[set],
+        k_values: Optional[List[int]] = None,
+    ) -> EvaluationResult:
+        """
+        Simplified evaluation with binary relevance (relevant/not).
+
+        Args:
+            ranked_lists: Per-query ranked candidate IDs.
+            relevant_sets: Per-query set of relevant candidate IDs.
+
+        Returns:
+            EvaluationResult.
+        """
+        relevance_dicts = [
+            {cid: (1.0 if cid in rel_set else 0.0) for cid in ranked}
+            for ranked, rel_set in zip(ranked_lists, relevant_sets)
+        ]
+        ranked_with_scores = [
+            [(cid, float(len(ranked) - i)) for i, cid in enumerate(ranked)]
+            for ranked in ranked_lists
+        ]
+        return self.evaluate(ranked_with_scores, relevance_dicts, k_values)
+
+    @staticmethod
+    def _dcg_at_k(relevances: np.ndarray, k: int) -> float:
+        """
+        Compute Discounted Cumulative Gain at K.
+
+        DCG@K = Σ (2^rel_i - 1) / log2(i + 2) for i in [0, K)
+        """
+        k = min(k, len(relevances))
+        if k == 0:
+            return 0.0
+
+        positions = np.arange(1, k + 1)
+        discounts = 1.0 / np.log2(positions + 1)
+        gains = 2 ** relevances[:k] - 1
+
+        return float(np.sum(gains * discounts))
+
+    def _ndcg_at_k(self, relevances: np.ndarray, k: int) -> float:
+        """
+        Compute Normalised DCG at K.
+
+        NDCG@K = DCG@K / IDCG@K
+        """
+        dcg = self._dcg_at_k(relevances, k)
+
+        # Ideal ranking: sort by relevance descending
+        ideal = np.sort(relevances)[::-1]
+        idcg = self._dcg_at_k(ideal, k)
+
+        if idcg == 0:
+            return 0.0
+
+        return dcg / idcg
+
+    @staticmethod
+    def _average_precision(relevances: np.ndarray) -> float:
+        """
+        Compute Average Precision for a single query.
+
+        AP = (1/R) × Σ P(k) × rel(k)
+        where R = total relevant, P(k) = precision at rank k.
+        """
+        num_relevant = np.sum(relevances > 0)
+        if num_relevant == 0:
+            return 0.0
+
+        precisions = []
+        for k in range(len(relevances)):
+            if relevances[k] > 0:
+                prec_at_k = np.sum(relevances[:k + 1] > 0) / (k + 1)
+                precisions.append(prec_at_k)
+
+        return float(np.sum(precisions) / num_relevant) if precisions else 0.0
+
+    @staticmethod
+    def _reciprocal_rank(relevances: np.ndarray) -> float:
+        """
+        Compute Reciprocal Rank.
+
+        RR = 1/rank of first relevant item.
+        """
+        for i, rel in enumerate(relevances):
+            if rel > 0:
+                return 1.0 / (i + 1)
         return 0.0
-    return float(dcg / idcg)
 
+    def cross_validate(
+        self,
+        all_ranked: List[List[List[Tuple[str, float]]]],
+        all_relevance: List[List[Dict[str, float]]],
+        fold_names: Optional[List[str]] = None,
+    ) -> Dict[str, EvaluationResult]:
+        """
+        Evaluate across multiple folds (e.g. time-based splits).
 
-def mean_average_precision(y_true: np.ndarray, y_score: np.ndarray) -> float:
-    """
-    Compute Mean Average Precision (MAP).
+        Args:
+            all_ranked: List of fold → query → ranked results.
+            all_relevance: List of fold → query → relevance labels.
 
-    MAP considers the precision at each relevant item's position.
+        Returns:
+            Dict mapping fold name to EvaluationResult.
+        """
+        if fold_names is None:
+            fold_names = [f"fold_{i}" for i in range(len(all_ranked))]
 
-    Args:
-        y_true: Binary relevance labels (1 = relevant, 0 = not)
-        y_score: Predicted scores
+        results = {}
+        for name, ranked, relevance in zip(fold_names, all_ranked, all_relevance):
+            results[name] = self.evaluate(ranked, relevance)
+            logger.info("Fold %s: %s", name, results[name].summary())
 
-    Returns:
-        MAP score between 0 and 1
-    """
-    order = np.argsort(y_score)[::-1]
-    y_true_sorted = np.take(y_true, order)
+        # Compute overall stats
+        all_ndcg10 = [r.ndcg_at_k.get(10, 0) for r in results.values()]
+        logger.info(
+            "Cross-validation NDCG@10: mean=%.4f, std=%.4f",
+            np.mean(all_ndcg10),
+            np.std(all_ndcg10),
+        )
 
-    relevant_count = 0
-    precision_sum = 0.0
-    total_relevant = np.sum(y_true > 0)
-
-    if total_relevant == 0:
-        return 0.0
-
-    for i, rel in enumerate(y_true_sorted):
-        if rel > 0:
-            relevant_count += 1
-            precision_at_i = relevant_count / (i + 1)
-            precision_sum += precision_at_i
-
-    return float(precision_sum / total_relevant)
-
-
-def mean_reciprocal_rank(y_true: np.ndarray, y_score: np.ndarray) -> float:
-    """
-    Compute Mean Reciprocal Rank (MRR).
-
-    MRR measures how early the first relevant item appears.
-
-    Args:
-        y_true: Binary relevance labels
-        y_score: Predicted scores
-
-    Returns:
-        MRR score between 0 and 1
-    """
-    order = np.argsort(y_score)[::-1]
-    y_true_sorted = np.take(y_true, order)
-
-    for i, rel in enumerate(y_true_sorted):
-        if rel > 0:
-            return 1.0 / (i + 1)
-
-    return 0.0
-
-
-def precision_at_k(y_true: np.ndarray, y_score: np.ndarray, k: int = 10) -> float:
-    """Precision at K: fraction of top-K items that are relevant."""
-    order = np.argsort(y_score)[::-1][:k]
-    y_true_sorted = np.take(y_true, order)
-    return float(np.sum(y_true_sorted > 0) / k)
-
-
-def recall_at_k(y_true: np.ndarray, y_score: np.ndarray, k: int = 10) -> float:
-    """Recall at K: fraction of relevant items found in top-K."""
-    total_relevant = np.sum(y_true > 0)
-    if total_relevant == 0:
-        return 0.0
-    order = np.argsort(y_score)[::-1][:k]
-    y_true_sorted = np.take(y_true, order)
-    return float(np.sum(y_true_sorted > 0) / total_relevant)
-
-
-def evaluate_ranker(
-    y_true_list: list[np.ndarray],
-    y_score_list: list[np.ndarray],
-    k_values: list[int] | None = None,
-) -> RankingMetrics:
-    """
-    Evaluate a ranking model across multiple queries.
-
-    Args:
-        y_true_list: List of relevance arrays (one per query)
-        y_score_list: List of score arrays (one per query)
-        k_values: Cutoff values for NDCG/Precision (default: [5, 10, 20])
-
-    Returns:
-        RankingMetrics with aggregated scores
-    """
-    if k_values is None:
-        k_values = [5, 10, 20]
-
-    n_queries = len(y_true_list)
-    metrics = RankingMetrics()
-
-    ndcg_scores = {k: [] for k in k_values}
-    map_scores = []
-    mrr_scores = []
-    prec_scores = {k: [] for k in k_values}
-    rec_scores = {k: [] for k in k_values}
-
-    for y_true, y_score in zip(y_true_list, y_score_list):
-        for k in k_values:
-            ndcg_scores[k].append(ndcg_at_k(y_true, y_score, k))
-            prec_scores[k].append(precision_at_k(y_true, y_score, k))
-            rec_scores[k].append(recall_at_k(y_true, y_score, k))
-
-        map_scores.append(mean_average_precision(y_true, y_score))
-        mrr_scores.append(mean_reciprocal_rank(y_true, y_score))
-
-    # Aggregate
-    if 5 in k_values:
-        metrics.ndcg_at_5 = float(np.mean(ndcg_scores[5]))
-        metrics.precision_at_5 = float(np.mean(prec_scores[5]))
-    if 10 in k_values:
-        metrics.ndcg_at_10 = float(np.mean(ndcg_scores[10]))
-        metrics.precision_at_10 = float(np.mean(prec_scores[10]))
-        metrics.recall_at_10 = float(np.mean(rec_scores[10]))
-    if 20 in k_values:
-        metrics.ndcg_at_20 = float(np.mean(ndcg_scores[20]))
-
-    metrics.map_score = float(np.mean(map_scores))
-    metrics.mrr = float(np.mean(mrr_scores))
-
-    logger.info(
-        "Ranker evaluation: NDCG@10=%.4f, MAP=%.4f, MRR=%.4f (n=%d queries)",
-        metrics.ndcg_at_10, metrics.map_score, metrics.mrr, n_queries,
-    )
-    return metrics
-
-
-def evaluate_fairness(
-    allocations: list[dict[str, Any]],
-    candidates: list[dict[str, Any]],
-) -> FairnessReport:
-    """
-    Evaluate fairness of allocation outcomes.
-
-    Args:
-        allocations: List of allocation records with candidate_id
-        candidates: List of candidate profiles with demographic info
-
-    Returns:
-        FairnessReport with distribution metrics
-    """
-    report = FairnessReport()
-
-    # Build lookup
-    candidate_map = {c.get("id"): c for c in candidates}
-    allocated_candidates = [
-        candidate_map[a["candidate_id"]]
-        for a in allocations
-        if a.get("candidate_id") in candidate_map
-    ]
-
-    n_allocated = len(allocated_candidates)
-    if n_allocated == 0:
-        return report
-
-    # Category distribution
-    category_counts: dict[str, int] = {}
-    for c in allocated_candidates:
-        cat = c.get("social_category", "Unknown")
-        category_counts[cat] = category_counts.get(cat, 0) + 1
-    report.category_distribution = {
-        k: v / n_allocated for k, v in category_counts.items()
-    }
-
-    # Geographic distribution (by state)
-    state_counts: dict[str, int] = {}
-    for c in allocated_candidates:
-        state = c.get("state", "Unknown")
-        state_counts[state] = state_counts.get(state, 0) + 1
-    report.geographic_distribution = {
-        k: v / n_allocated for k, v in state_counts.items()
-    }
-
-    # Rural/Urban ratio
-    rural_count = sum(1 for c in allocated_candidates if c.get("is_rural", False))
-    report.rural_urban_ratio = {
-        "rural": rural_count / n_allocated,
-        "urban": (n_allocated - rural_count) / n_allocated,
-    }
-
-    # Gini coefficient (on allocation counts per district)
-    district_counts = list(state_counts.values())
-    if len(district_counts) > 1:
-        report.gini_coefficient = _gini(np.array(district_counts, dtype=float))
-
-    # Group parities (category representation vs. candidate pool)
-    pool_category: dict[str, int] = {}
-    for c in candidates:
-        cat = c.get("social_category", "Unknown")
-        pool_category[cat] = pool_category.get(cat, 0) + 1
-    pool_total = sum(pool_category.values())
-
-    for cat, pool_count in pool_category.items():
-        pool_pct = pool_count / pool_total if pool_total > 0 else 0
-        alloc_pct = category_counts.get(cat, 0) / n_allocated
-        # Parity = alloc_pct / pool_pct (1.0 = perfect parity)
-        report.group_parities[cat] = alloc_pct / pool_pct if pool_pct > 0 else 0.0
-
-    logger.info(
-        "Fairness evaluation: Gini=%.4f, categories=%d, states=%d",
-        report.gini_coefficient, len(category_counts), len(state_counts),
-    )
-    return report
-
-
-def _gini(values: np.ndarray) -> float:
-    """
-    Compute the Gini coefficient.
-
-    0 = perfect equality, 1 = perfect inequality.
-    """
-    sorted_vals = np.sort(values)
-    n = len(sorted_vals)
-    if n == 0 or np.sum(sorted_vals) == 0:
-        return 0.0
-    cumulative = np.cumsum(sorted_vals)
-    gini = (2 * np.sum((np.arange(1, n + 1) * sorted_vals)) - (n + 1) * np.sum(sorted_vals))
-    gini = gini / (n * np.sum(sorted_vals))
-    return float(max(0.0, min(1.0, gini)))
+        return results

@@ -1,364 +1,338 @@
 """
-Fairness metrics for evaluating allocation equity.
+Fairness Metrics – Distribution & Equity Analysis
+===================================================
 
-Computes distributional fairness metrics across categories, geographies,
-and other demographic dimensions.
+Computes metrics to evaluate how equitably allocations are distributed
+across social categories, geographies, and demographic groups.
+
+Metrics include:
+    - Representation ratio (actual vs expected)
+    - Gini coefficient (inequality)
+    - Disparate impact ratio
+    - Demographic parity difference
+    - Allocation rate by group
 """
 
+from __future__ import annotations
+
 import logging
+from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
-import pandas as pd
 
 logger = logging.getLogger(__name__)
 
 
 @dataclass
+class GroupMetrics:
+    """Metrics for a single demographic group."""
+    group_name: str
+    total_candidates: int = 0
+    allocated_candidates: int = 0
+    allocation_rate: float = 0.0
+    representation_ratio: float = 0.0  # actual / expected
+    average_score: float = 0.0
+
+
+@dataclass
 class FairnessReport:
-    """Comprehensive fairness report for an allocation."""
-    category_distribution: Dict[str, Dict[str, float]]
-    geographic_distribution: Dict[str, Dict[str, float]]
-    rural_urban_ratio: Dict[str, float]
-    gini_coefficient: float
-    concentration_index: float
-    gender_distribution: Dict[str, Dict[str, float]]
-    overall_fairness_score: float
-    recommendations: List[str]
-    raw_metrics: Dict[str, Any] = field(default_factory=dict)
+    """Complete fairness analysis report."""
+    # Overall metrics
+    gini_coefficient: float = 0.0
+    disparate_impact_ratio: float = 0.0
+    demographic_parity_difference: float = 0.0
 
+    # Per-group breakdowns
+    by_social_category: Dict[str, GroupMetrics] = field(default_factory=dict)
+    by_district: Dict[str, GroupMetrics] = field(default_factory=dict)
+    by_state: Dict[str, GroupMetrics] = field(default_factory=dict)
+    by_rural_urban: Dict[str, GroupMetrics] = field(default_factory=dict)
+    by_gender: Dict[str, GroupMetrics] = field(default_factory=dict)
 
-def category_distribution(
-    allocations: pd.DataFrame,
-    candidates: pd.DataFrame,
-) -> Dict[str, Dict[str, float]]:
-    """
-    Compute distribution of allocations across social categories.
+    # Flags
+    violations: List[str] = field(default_factory=list)
 
-    Args:
-        allocations: DataFrame with candidate_id, opportunity_id columns.
-        candidates: DataFrame with candidate_id, category columns.
-
-    Returns:
-        Dict mapping category to {allocated, total, allocation_rate, expected_rate}.
-    """
-    if "category" not in candidates.columns:
-        return {}
-
-    cand_with_cat = candidates[["candidate_id", "category"]].copy()
-    allocated_ids = set(allocations["candidate_id"].unique())
-    cand_with_cat["is_allocated"] = cand_with_cat["candidate_id"].isin(allocated_ids)
-
-    total = len(candidates)
-    result = {}
-
-    for category, group in cand_with_cat.groupby("category"):
-        cat_total = len(group)
-        cat_allocated = int(group["is_allocated"].sum())
-        expected_rate = cat_total / total if total > 0 else 0.0
-
-        result[str(category)] = {
-            "total_candidates": cat_total,
-            "allocated": cat_allocated,
-            "allocation_rate": cat_allocated / cat_total if cat_total > 0 else 0.0,
-            "expected_rate": expected_rate,
-            "representation_gap": (cat_allocated / len(allocated_ids) if len(allocated_ids) > 0 else 0.0) - expected_rate,
+    def to_dict(self) -> Dict[str, Any]:
+        """Serialize to dict for API responses."""
+        return {
+            "gini_coefficient": round(self.gini_coefficient, 4),
+            "disparate_impact_ratio": round(self.disparate_impact_ratio, 4),
+            "demographic_parity_difference": round(self.demographic_parity_difference, 4),
+            "by_social_category": {
+                k: {
+                    "total": v.total_candidates,
+                    "allocated": v.allocated_candidates,
+                    "rate": round(v.allocation_rate, 4),
+                    "representation_ratio": round(v.representation_ratio, 4),
+                }
+                for k, v in self.by_social_category.items()
+            },
+            "by_rural_urban": {
+                k: {
+                    "total": v.total_candidates,
+                    "allocated": v.allocated_candidates,
+                    "rate": round(v.allocation_rate, 4),
+                }
+                for k, v in self.by_rural_urban.items()
+            },
+            "violations": self.violations,
         }
 
-    return result
 
-
-def geographic_distribution(
-    allocations: pd.DataFrame,
-    candidates: pd.DataFrame,
-) -> Dict[str, Dict[str, float]]:
+class FairnessMetrics:
     """
-    Compute distribution of allocations across geographic regions.
+    Computes fairness and equity metrics for allocations.
 
-    Args:
-        allocations: DataFrame with candidate_id column.
-        candidates: DataFrame with candidate_id, district columns.
-
-    Returns:
-        Dict mapping district to {allocated, total, allocation_rate, share}.
+    Usage:
+        metrics = FairnessMetrics()
+        report = metrics.compute(candidates, allocations)
     """
-    geo_col = None
-    for col in ["district", "state", "region"]:
-        if col in candidates.columns:
-            geo_col = col
-            break
 
-    if geo_col is None:
-        return {}
+    # Thresholds for violation detection
+    MIN_DISPARATE_IMPACT = 0.80  # 4/5ths rule
+    MAX_PARITY_DIFFERENCE = 0.10  # 10% max gap
+    MIN_REPRESENTATION_RATIO = 0.70
 
-    cand_geo = candidates[["candidate_id", geo_col]].copy()
-    allocated_ids = set(allocations["candidate_id"].unique())
-    cand_geo["is_allocated"] = cand_geo["candidate_id"].isin(allocated_ids)
+    def compute(
+        self,
+        candidates: List[Dict[str, Any]],
+        allocations: List[Dict[str, Any]],
+        opportunities: Optional[List[Dict[str, Any]]] = None,
+    ) -> FairnessReport:
+        """
+        Compute fairness metrics for a set of allocations.
 
-    total_allocated = len(allocated_ids)
-    result = {}
+        Args:
+            candidates: All candidate dicts (including social_category, district, etc.)
+            allocations: Allocation dicts with candidate_id, is_allocated, score.
+            opportunities: Opportunity dicts (optional, for context).
 
-    for region, group in cand_geo.groupby(geo_col):
-        region_total = len(group)
-        region_allocated = int(group["is_allocated"].sum())
-
-        result[str(region)] = {
-            "total_candidates": region_total,
-            "allocated": region_allocated,
-            "allocation_rate": region_allocated / region_total if region_total > 0 else 0.0,
-            "share_of_allocations": region_allocated / total_allocated if total_allocated > 0 else 0.0,
-            "share_of_candidates": region_total / len(candidates) if len(candidates) > 0 else 0.0,
+        Returns:
+            FairnessReport with all metrics and violation flags.
+        """
+        # Build lookup
+        cand_map = {str(c.get("id", i)): c for i, c in enumerate(candidates)}
+        allocated_ids = {
+            str(a["candidate_id"]) for a in allocations if a.get("is_allocated", False)
+        }
+        alloc_scores = {
+            str(a["candidate_id"]): float(a.get("score", 0))
+            for a in allocations
+            if a.get("is_allocated", False)
         }
 
-    return result
+        total = len(candidates)
+        total_allocated = len(allocated_ids)
 
+        if total == 0:
+            return FairnessReport()
 
-def rural_urban_ratio(allocations: pd.DataFrame) -> Dict[str, float]:
-    """
-    Compute rural vs urban allocation ratios.
+        overall_rate = total_allocated / total
 
-    Args:
-        allocations: DataFrame with candidate_id and is_rural column.
+        report = FairnessReport()
 
-    Returns:
-        Dict with rural/urban counts and ratios.
-    """
-    if "is_rural" not in allocations.columns:
-        return {"error": "is_rural column not found"}
+        # ── By social category ────────────────────────────────────
+        report.by_social_category = self._compute_group_metrics(
+            candidates, allocated_ids, alloc_scores,
+            key_fn=lambda c: (c.get("social_category") or "general").lower(),
+            overall_rate=overall_rate,
+        )
 
-    rural_mask = allocations["is_rural"].astype(bool)
-    rural_count = int(rural_mask.sum())
-    urban_count = int((~rural_mask).sum())
-    total = rural_count + urban_count
+        # ── By district ───────────────────────────────────────────
+        report.by_district = self._compute_group_metrics(
+            candidates, allocated_ids, alloc_scores,
+            key_fn=lambda c: c.get("district") or "unknown",
+            overall_rate=overall_rate,
+        )
 
-    return {
-        "rural_count": rural_count,
-        "urban_count": urban_count,
-        "total": total,
-        "rural_fraction": rural_count / total if total > 0 else 0.0,
-        "urban_fraction": urban_count / total if total > 0 else 0.0,
-        "rural_urban_ratio": rural_count / urban_count if urban_count > 0 else float("inf"),
-    }
+        # ── By state ──────────────────────────────────────────────
+        report.by_state = self._compute_group_metrics(
+            candidates, allocated_ids, alloc_scores,
+            key_fn=lambda c: c.get("state") or "unknown",
+            overall_rate=overall_rate,
+        )
 
+        # ── By rural/urban ────────────────────────────────────────
+        report.by_rural_urban = self._compute_group_metrics(
+            candidates, allocated_ids, alloc_scores,
+            key_fn=lambda c: "rural" if c.get("is_rural", False) else "urban",
+            overall_rate=overall_rate,
+        )
 
-def gini_coefficient(values: np.ndarray) -> float:
-    """
-    Compute the Gini coefficient for a distribution.
+        # ── By gender ─────────────────────────────────────────────
+        report.by_gender = self._compute_group_metrics(
+            candidates, allocated_ids, alloc_scores,
+            key_fn=lambda c: (c.get("gender") or "unspecified").lower(),
+            overall_rate=overall_rate,
+        )
 
-    A value of 0 means perfect equality; 1 means maximum inequality.
+        # ── Overall metrics ───────────────────────────────────────
+        report.gini_coefficient = self._gini_coefficient(
+            [alloc_scores.get(cid, 0.0) for cid in cand_map]
+        )
 
-    Args:
-        values: Array of non-negative values (e.g., allocation counts per group).
+        # Disparate impact: min group rate / max group rate
+        category_rates = [
+            gm.allocation_rate for gm in report.by_social_category.values()
+            if gm.total_candidates > 0
+        ]
+        if category_rates and max(category_rates) > 0:
+            report.disparate_impact_ratio = min(category_rates) / max(category_rates)
 
-    Returns:
-        Gini coefficient in [0, 1].
-    """
-    values = np.asarray(values, dtype=float)
-    if len(values) == 0:
-        return 0.0
+        # Demographic parity difference: max gap between groups
+        if category_rates:
+            report.demographic_parity_difference = max(category_rates) - min(category_rates)
 
-    values = values[values >= 0]
-    if len(values) == 0 or np.sum(values) == 0:
-        return 0.0
+        # ── Violation detection ───────────────────────────────────
+        report.violations = self._detect_violations(report)
 
-    values = np.sort(values)
-    n = len(values)
-    cumulative = np.cumsum(values)
-    total = cumulative[-1]
+        return report
 
-    if total == 0:
-        return 0.0
+    def _compute_group_metrics(
+        self,
+        candidates: List[Dict[str, Any]],
+        allocated_ids: set,
+        alloc_scores: Dict[str, float],
+        key_fn,
+        overall_rate: float,
+    ) -> Dict[str, GroupMetrics]:
+        """Compute metrics for groups defined by key_fn."""
+        groups: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
+        for c in candidates:
+            groups[key_fn(c)].append(c)
 
-    gini = 1.0 - 2.0 * np.sum(cumulative) / (n * total) + 1.0 / n
-    return float(np.clip(gini, 0.0, 1.0))
+        result = {}
+        for group_name, group_candidates in groups.items():
+            total = len(group_candidates)
+            allocated = sum(
+                1 for c in group_candidates
+                if str(c.get("id", "")) in allocated_ids
+            )
+            rate = allocated / total if total > 0 else 0.0
 
+            scores = [
+                alloc_scores.get(str(c.get("id", "")), 0.0)
+                for c in group_candidates
+                if str(c.get("id", "")) in alloc_scores
+            ]
+            avg_score = float(np.mean(scores)) if scores else 0.0
 
-def concentration_index(opportunities_by_region: Dict[str, int]) -> float:
-    """
-    Compute the Herfindahl-Hirschman Index (HHI) concentration index.
+            representation = rate / overall_rate if overall_rate > 0 else 0.0
 
-    Measures how concentrated opportunities are across regions.
-    Lower values indicate more distributed allocation.
-
-    Args:
-        opportunities_by_region: Dict mapping region to number of opportunities.
-
-    Returns:
-        HHI concentration index in [0, 1]. 1 = all in one region.
-    """
-    values = list(opportunities_by_region.values())
-    total = sum(values)
-
-    if total == 0:
-        return 0.0
-
-    shares = [v / total for v in values]
-    hhi = sum(s ** 2 for s in shares)
-
-    # Normalize: HHI ranges from 1/n to 1
-    n = len(values)
-    if n <= 1:
-        return 1.0
-
-    min_hhi = 1.0 / n
-    normalized = (hhi - min_hhi) / (1.0 - min_hhi)
-    return float(np.clip(normalized, 0.0, 1.0))
-
-
-def gender_distribution(
-    allocations: pd.DataFrame,
-    candidates: pd.DataFrame,
-) -> Dict[str, Dict[str, float]]:
-    """
-    Compute gender distribution of allocations.
-
-    Args:
-        allocations: DataFrame with candidate_id column.
-        candidates: DataFrame with candidate_id, gender columns.
-
-    Returns:
-        Dict mapping gender to allocation statistics.
-    """
-    if "gender" not in candidates.columns:
-        return {}
-
-    cand_gender = candidates[["candidate_id", "gender"]].copy()
-    allocated_ids = set(allocations["candidate_id"].unique())
-    cand_gender["is_allocated"] = cand_gender["candidate_id"].isin(allocated_ids)
-
-    total_allocated = len(allocated_ids)
-    result = {}
-
-    for gender, group in cand_gender.groupby("gender"):
-        g_total = len(group)
-        g_allocated = int(group["is_allocated"].sum())
-
-        result[str(gender)] = {
-            "total_candidates": g_total,
-            "allocated": g_allocated,
-            "allocation_rate": g_allocated / g_total if g_total > 0 else 0.0,
-            "share_of_allocations": g_allocated / total_allocated if total_allocated > 0 else 0.0,
-            "share_of_candidates": g_total / len(candidates) if len(candidates) > 0 else 0.0,
-        }
-
-    return result
-
-
-def compute_all_fairness_metrics(
-    allocations: pd.DataFrame,
-    candidates: Optional[pd.DataFrame] = None,
-) -> FairnessReport:
-    """
-    Compute all fairness metrics and generate a comprehensive report.
-
-    Args:
-        allocations: DataFrame with allocation results (candidate_id, opportunity_id, score).
-        candidates: DataFrame with candidate profiles. If None, only allocation-level metrics
-                    are computed.
-
-    Returns:
-        FairnessReport with all computed metrics and recommendations.
-    """
-    recommendations = []
-
-    cat_dist = {}
-    geo_dist = {}
-    gender_dist = {}
-
-    if candidates is not None:
-        cat_dist = category_distribution(allocations, candidates)
-        geo_dist = geographic_distribution(allocations, candidates)
-        gender_dist = gender_distribution(allocations, candidates)
-
-    rural_urban = rural_urban_ratio(allocations)
-
-    # Gini on allocation counts per district
-    gini = 0.0
-    if geo_dist:
-        district_counts = np.array([
-            d["allocated"] for d in geo_dist.values()
-        ], dtype=float)
-        gini = gini_coefficient(district_counts)
-
-        if gini > 0.4:
-            recommendations.append(
-                f"Geographic inequality is high (Gini={gini:.2f}). "
-                "Consider increasing district-level diversity targets."
+            result[group_name] = GroupMetrics(
+                group_name=group_name,
+                total_candidates=total,
+                allocated_candidates=allocated,
+                allocation_rate=rate,
+                representation_ratio=representation,
+                average_score=avg_score,
             )
 
-    # Concentration index on opportunities
-    conc = 0.0
-    if geo_dist:
-        opp_by_region = {k: v["allocated"] for k, v in geo_dist.items()}
-        conc = concentration_index(opp_by_region)
+        return result
 
-        if conc > 0.3:
-            recommendations.append(
-                f"Opportunity concentration is high (HHI={conc:.2f}). "
-                "Consider distributing opportunities more evenly."
-            )
+    def _gini_coefficient(self, values: List[float]) -> float:
+        """
+        Compute the Gini coefficient for a list of values.
 
-    # Category balance check
-    if cat_dist:
-        allocation_rates = [v["allocation_rate"] for v in cat_dist.values()]
-        if allocation_rates:
-            rate_gini = gini_coefficient(np.array(allocation_rates))
-            if rate_gini > 0.15:
-                recommendations.append(
-                    f"Category allocation rates are imbalanced (Gini={rate_gini:.2f}). "
-                    "Consider category-based balancing in re-ranking."
+        0 = perfect equality, 1 = perfect inequality.
+        """
+        if not values or all(v == 0 for v in values):
+            return 0.0
+
+        sorted_vals = sorted(values)
+        n = len(sorted_vals)
+        cumulative = np.cumsum(sorted_vals)
+        total = cumulative[-1]
+
+        if total == 0:
+            return 0.0
+
+        gini = (2.0 * sum((i + 1) * v for i, v in enumerate(sorted_vals))) / (n * total) - (n + 1) / n
+        return max(0.0, min(1.0, gini))
+
+    def _detect_violations(self, report: FairnessReport) -> List[str]:
+        """Detect fairness violations based on thresholds."""
+        violations = []
+
+        # Check disparate impact (4/5ths rule) for social categories
+        category_rates = {
+            k: v.allocation_rate
+            for k, v in report.by_social_category.items()
+            if v.total_candidates >= 10  # Only check groups with enough data
+        }
+
+        if category_rates:
+            max_rate = max(category_rates.values())
+            for group, rate in category_rates.items():
+                if max_rate > 0 and rate / max_rate < self.MIN_DISPARATE_IMPACT:
+                    violations.append(
+                        f"Disparate impact: {group} allocation rate ({rate:.1%}) "
+                        f"is below {self.MIN_DISPARATE_IMPACT:.0%} of the highest group rate ({max_rate:.1%})"
+                    )
+
+        # Check representation ratios
+        for group_name, gm in report.by_social_category.items():
+            if gm.total_candidates >= 10 and gm.representation_ratio < self.MIN_REPRESENTATION_RATIO:
+                violations.append(
+                    f"Under-representation: {group_name} has representation ratio "
+                    f"{gm.representation_ratio:.2f} (threshold: {self.MIN_REPRESENTATION_RATIO})"
                 )
 
-    # Gender balance check
-    if gender_dist:
-        female_data = gender_dist.get("female", gender_dist.get("Female", {}))
-        if female_data:
-            female_share = female_data.get("share_of_allocations", 0.0)
-            if female_share < 0.33:
-                recommendations.append(
-                    f"Female representation is {female_share:.1%} (target: 33%). "
-                    "Consider female participation uplift."
+        # Check rural/urban parity
+        rural = report.by_rural_urban.get("rural")
+        urban = report.by_rural_urban.get("urban")
+        if rural and urban and rural.total_candidates >= 10 and urban.total_candidates >= 10:
+            gap = abs(rural.allocation_rate - urban.allocation_rate)
+            if gap > self.MAX_PARITY_DIFFERENCE:
+                violations.append(
+                    f"Rural-urban parity gap: {gap:.1%} "
+                    f"(rural: {rural.allocation_rate:.1%}, urban: {urban.allocation_rate:.1%})"
                 )
 
-    # Rural check
-    if "rural_fraction" in rural_urban:
-        rural_frac = rural_urban["rural_fraction"]
-        if rural_frac < 0.25:
-            recommendations.append(
-                f"Rural candidate fraction is {rural_frac:.1%} (target: 25%). "
-                "Consider rural preference in policy."
+        # Check Gini
+        if report.gini_coefficient > 0.40:
+            violations.append(
+                f"High inequality: Gini coefficient is {report.gini_coefficient:.3f} (threshold: 0.40)"
             )
 
-    if not recommendations:
-        recommendations.append("All fairness metrics are within acceptable ranges.")
+        return violations
 
-    # Overall fairness score (0-1, higher = more fair)
-    component_scores = []
-    component_scores.append(1.0 - min(gini, 1.0))
-    component_scores.append(1.0 - min(conc, 1.0))
-    if cat_dist:
-        cat_gini = gini_coefficient(np.array([v["allocation_rate"] for v in cat_dist.values()]))
-        component_scores.append(1.0 - min(cat_gini, 1.0))
-    if gender_dist:
-        female_data = gender_dist.get("female", gender_dist.get("Female", {}))
-        female_share = female_data.get("share_of_allocations", 0.0)
-        component_scores.append(min(female_share / 0.33, 1.0))
+    def compute_opportunity_fairness(
+        self,
+        opportunity: Dict[str, Any],
+        allocated_candidates: List[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        """
+        Compute fairness metrics for a single opportunity's allocations.
 
-    overall_score = float(np.mean(component_scores)) if component_scores else 0.5
+        Returns a dict with category distributions and diversity score.
+        """
+        if not allocated_candidates:
+            return {"diversity_score": 0.0, "categories": {}}
 
-    return FairnessReport(
-        category_distribution=cat_dist,
-        geographic_distribution=geo_dist,
-        rural_urban_ratio=rural_urban,
-        gini_coefficient=gini,
-        concentration_index=conc,
-        gender_distribution=gender_dist,
-        overall_fairness_score=overall_score,
-        recommendations=recommendations,
-        raw_metrics={
-            "gini": gini,
-            "concentration_index": conc,
-            "rural_urban": rural_urban,
-        },
-    )
+        categories = Counter(
+            (c.get("social_category") or "general").lower()
+            for c in allocated_candidates
+        )
+        total = len(allocated_candidates)
+
+        # Shannon diversity index
+        diversity = 0.0
+        for count in categories.values():
+            p = count / total
+            if p > 0:
+                diversity -= p * np.log(p)
+        # Normalize by max possible diversity
+        max_diversity = np.log(max(len(categories), 1))
+        diversity_score = diversity / max_diversity if max_diversity > 0 else 0.0
+
+        return {
+            "diversity_score": round(float(diversity_score), 4),
+            "total_allocated": total,
+            "categories": {
+                cat: {"count": count, "percentage": round(count / total, 4)}
+                for cat, count in categories.items()
+            },
+        }

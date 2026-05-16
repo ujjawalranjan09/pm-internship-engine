@@ -3,7 +3,10 @@
 import logging
 from typing import Any
 
-from opensearchpy import AsyncOpenSearch
+try:
+    from opensearchpy import AsyncOpenSearch
+except ImportError:
+    from opensearchpy._async import AsyncOpenSearch
 
 from app.core.config import get_settings
 

@@ -1,188 +1,227 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import * as adminService from "@/services/admin-service";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, SortableHeader } from "@/components/ui/table";
+import { SkeletonTable } from "@/components/shared/skeleton";
 import { PageHeader } from "@/components/shared/page-header";
-import { SkeletonCard } from "@/components/shared/skeleton";
 import { EmptyState } from "@/components/shared/empty-state";
-import { formatDate, cn } from "@/lib/utils";
+import { formatDateTime, cn } from "@/lib/utils";
 import {
-  Search,
   FileText,
-  Shield,
-  User,
-  GitMerge,
-  Briefcase,
-  Settings,
-  ChevronLeft,
-  ChevronRight,
   Download,
   Filter,
+  Search,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 
-const actionIcons: Record<string, typeof Shield> = {
-  create: FileText,
-  update: Settings,
-  delete: Shield,
-  login: User,
-  allocate: GitMerge,
-  override: Shield,
-  match: Briefcase,
-};
-
-const actionColors: Record<string, string> = {
-  create: "text-green-600 bg-green-50",
-  update: "text-blue-600 bg-blue-50",
-  delete: "text-red-600 bg-red-50",
-  login: "text-purple-600 bg-purple-50",
-  allocate: "text-amber-600 bg-amber-50",
-  override: "text-orange-600 bg-orange-50",
-  match: "text-teal-600 bg-teal-50",
-};
-
-const MOCK_AUDIT_LOGS = [
-  { id: "1", action: "allocate", entityType: "allocation", entityId: "a-123", performedBy: "system", performedByName: "System", details: { cycle: "Cycle 2025-01" }, timestamp: "2025-01-25T10:30:00Z" },
-  { id: "2", action: "create", entityType: "candidate", entityId: "c-456", performedBy: "u-789", performedByName: "Priya Sharma", details: {}, timestamp: "2025-01-25T09:15:00Z" },
-  { id: "3", action: "update", entityType: "opportunity", entityId: "o-789", performedBy: "u-101", performedByName: "TechCorp HR", details: { field: "capacity" }, timestamp: "2025-01-25T08:45:00Z" },
-  { id: "4", action: "override", entityType: "allocation", entityId: "a-456", performedBy: "u-001", performedByName: "Admin User", details: { reason: "Candidate request" }, timestamp: "2025-01-24T16:20:00Z" },
-  { id: "5", action: "login", entityType: "user", entityId: "u-202", performedBy: "u-202", performedByName: "Rahul Kumar", details: { ip: "192.168.1.1" }, timestamp: "2025-01-24T14:00:00Z" },
-  { id: "6", action: "match", entityType: "match", entityId: "m-100", performedBy: "system", performedByName: "System", details: { candidates: 4200 }, timestamp: "2025-01-24T12:00:00Z" },
+const ACTION_TYPES = [
+  "allocation.triggered",
+  "allocation.completed",
+  "policy.updated",
+  "override.approved",
+  "override.rejected",
+  "candidate.verified",
+  "opportunity.approved",
+  "notification.sent",
 ];
 
-export default function AdminAuditPage() {
-  const [page, setPage] = useState(1);
+const ACTION_COLORS: Record<string, string> = {
+  "allocation.triggered": "bg-blue-100 text-blue-800",
+  "allocation.completed": "bg-green-100 text-green-800",
+  "policy.updated": "bg-purple-100 text-purple-800",
+  "override.approved": "bg-green-100 text-green-800",
+  "override.rejected": "bg-red-100 text-red-800",
+  "candidate.verified": "bg-teal-100 text-teal-800",
+  "opportunity.approved": "bg-indigo-100 text-indigo-800",
+  "notification.sent": "bg-gray-100 text-gray-800",
+};
+
+export default function AuditPage() {
+  const { data: auditLog, isLoading } = useQuery({
+    queryKey: ["admin", "audit"],
+    queryFn: adminService.getAuditLog,
+  });
+
   const [search, setSearch] = useState("");
   const [actionFilter, setActionFilter] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [sortField, setSortField] = useState("timestamp");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  const [page, setPage] = useState(1);
+  const pageSize = 10;
 
-  const logs = MOCK_AUDIT_LOGS;
-  const filtered = logs.filter((log) => {
-    if (actionFilter && log.action !== actionFilter) return false;
-    if (search) {
-      const q = search.toLowerCase();
-      return (
-        log.action.includes(q) ||
-        log.entityType.includes(q) ||
-        log.performedByName.toLowerCase().includes(q)
-      );
-    }
-    return true;
-  });
+  const handleSort = (field: string) => {
+    if (sortField === field) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else { setSortField(field); setSortDir("desc"); }
+  };
+
+  const filtered = useMemo(() => {
+    if (!auditLog) return [];
+    return auditLog.filter((entry) => {
+      const matchesSearch = !search ||
+        entry.action.toLowerCase().includes(search.toLowerCase()) ||
+        entry.performedByName.toLowerCase().includes(search.toLowerCase()) ||
+        entry.entityType.toLowerCase().includes(search.toLowerCase());
+      const matchesAction = !actionFilter || entry.action === actionFilter;
+      const matchesDateFrom = !dateFrom || new Date(entry.timestamp) >= new Date(dateFrom);
+      const matchesDateTo = !dateTo || new Date(entry.timestamp) <= new Date(dateTo + "T23:59:59Z");
+      return matchesSearch && matchesAction && matchesDateFrom && matchesDateTo;
+    }).sort((a, b) => {
+      const aVal = a[sortField as keyof typeof a] ?? "";
+      const bVal = b[sortField as keyof typeof b] ?? "";
+      return sortDir === "asc"
+        ? String(aVal).localeCompare(String(bVal))
+        : String(bVal).localeCompare(String(aVal));
+    });
+  }, [auditLog, search, actionFilter, dateFrom, dateTo, sortField, sortDir]);
+
+  const totalPages = Math.ceil(filtered.length / pageSize);
+  const paged = filtered.slice((page - 1) * pageSize, page * pageSize);
+
+  const handleExport = () => {
+    const headers = ["Timestamp", "User", "Action", "Entity Type", "Entity ID", "Details"];
+    const rows = filtered.map((e) => [
+      e.timestamp,
+      e.performedByName,
+      e.action,
+      e.entityType,
+      e.entityId,
+      JSON.stringify(e.details),
+    ]);
+    const csv = [headers, ...rows].map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `audit-log-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Audit Logs"
-        description="Complete audit trail of all system actions for compliance and debugging"
+        title="Audit Log"
+        description="Track all system actions and changes"
+        actions={
+          <Button variant="outline" onClick={handleExport}>
+            <Download className="h-4 w-4 mr-2" /> Export CSV
+          </Button>
+        }
       />
 
       {/* Filters */}
       <Card>
         <CardContent className="p-4">
-          <div className="flex flex-col sm:flex-row gap-3">
-            <div className="relative flex-1">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+            <div className="relative lg:col-span-2">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Search by action, entity, or user..."
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="pl-9"
+                onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+                placeholder="Search by action, user, or entity..."
+                className="pl-10"
               />
             </div>
-            <select
+            <Select
+              options={[
+                { label: "All Actions", value: "" },
+                ...ACTION_TYPES.map((a) => ({ label: a.replace(/\./g, " ").replace(/\b\w/g, (c) => c.toUpperCase()), value: a })),
+              ]}
               value={actionFilter}
-              onChange={(e) => setActionFilter(e.target.value)}
-              className="px-3 py-2 border rounded-md text-sm bg-background"
-            >
-              <option value="">All Actions</option>
-              <option value="create">Create</option>
-              <option value="update">Update</option>
-              <option value="delete">Delete</option>
-              <option value="login">Login</option>
-              <option value="allocate">Allocate</option>
-              <option value="override">Override</option>
-              <option value="match">Match</option>
-            </select>
-            <Button variant="outline" size="sm">
-              <Download className="h-4 w-4 mr-1.5" />
-              Export
-            </Button>
+              onChange={(e) => { setActionFilter(e.target.value); setPage(1); }}
+              aria-label="Filter by action"
+            />
+            <Input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => { setDateFrom(e.target.value); setPage(1); }}
+              aria-label="From date"
+              placeholder="From"
+            />
+            <Input
+              type="date"
+              value={dateTo}
+              onChange={(e) => { setDateTo(e.target.value); setPage(1); }}
+              aria-label="To date"
+              placeholder="To"
+            />
           </div>
         </CardContent>
       </Card>
 
-      {/* Timeline */}
+      {/* Table */}
       <Card>
         <CardContent className="p-0">
-          {filtered.length === 0 ? (
-            <div className="p-6">
-              <EmptyState
-                icon="file"
-                title="No audit logs found"
-                description="Try adjusting your filters"
-              />
-            </div>
+          {isLoading ? (
+            <div className="p-4"><SkeletonTable rows={8} cols={5} /></div>
+          ) : paged.length === 0 ? (
+            <EmptyState icon="search" title="No audit entries found" description="Try adjusting your filters" />
           ) : (
-            <div className="divide-y">
-              {filtered.map((log) => {
-                const Icon = actionIcons[log.action] ?? FileText;
-                const colorClass = actionColors[log.action] ?? "text-gray-600 bg-gray-50";
+            <>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <SortableHeader sortField="timestamp" currentSort={{ field: sortField, direction: sortDir }} onSort={handleSort}>Timestamp</SortableHeader>
+                    <SortableHeader sortField="performedByName" currentSort={{ field: sortField, direction: sortDir }} onSort={handleSort}>User</SortableHeader>
+                    <SortableHeader sortField="action" currentSort={{ field: sortField, direction: sortDir }} onSort={handleSort}>Action</SortableHeader>
+                    <TableHead className="hidden md:table-cell">Entity</TableHead>
+                    <TableHead className="hidden lg:table-cell">Details</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {paged.map((entry) => (
+                    <TableRow key={entry.id}>
+                      <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
+                        {formatDateTime(entry.timestamp)}
+                      </TableCell>
+                      <TableCell className="font-medium text-sm">{entry.performedByName}</TableCell>
+                      <TableCell>
+                        <Badge className={cn("text-xs", ACTION_COLORS[entry.action] ?? "bg-gray-100 text-gray-800")} size="sm">
+                          {entry.action}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="hidden md:table-cell text-sm text-muted-foreground">
+                        {entry.entityType} / {entry.entityId}
+                      </TableCell>
+                      <TableCell className="hidden lg:table-cell text-xs text-muted-foreground max-w-[200px] truncate">
+                        {Object.entries(entry.details).map(([k, v]) => `${k}: ${v}`).join(", ")}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
 
-                return (
-                  <div key={log.id} className="flex items-start gap-4 p-4 hover:bg-muted/30 transition-colors">
-                    <div className={cn("shrink-0 w-9 h-9 rounded-lg flex items-center justify-center", colorClass)}>
-                      <Icon className="h-4 w-4" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <p className="text-sm">
-                            <span className="font-medium">{log.performedByName}</span>
-                            {" "}
-                            <span className="text-muted-foreground">{log.action}d</span>
-                            {" "}
-                            <Badge variant="outline" size="sm">{log.entityType}</Badge>
-                            {" "}
-                            <span className="font-mono text-xs text-muted-foreground">{log.entityId}</span>
-                          </p>
-                          {Object.keys(log.details).length > 0 && (
-                            <p className="text-xs text-muted-foreground mt-1">
-                              {Object.entries(log.details).map(([k, v]) => `${k}: ${v}`).join(" · ")}
-                            </p>
-                          )}
-                        </div>
-                        <span className="text-xs text-muted-foreground shrink-0">
-                          {formatDate(log.timestamp)}
-                        </span>
-                      </div>
-                    </div>
+              {/* Pagination */}
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between p-4 border-t">
+                  <span className="text-sm text-muted-foreground">
+                    Showing {(page - 1) * pageSize + 1}-{Math.min(page * pageSize, filtered.length)} of {filtered.length}
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}>
+                      <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                    <span className="text-sm">Page {page} of {totalPages}</span>
+                    <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page === totalPages}>
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
                   </div>
-                );
-              })}
-            </div>
+                </div>
+              )}
+            </>
           )}
         </CardContent>
       </Card>
-
-      {/* Pagination */}
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">
-          Showing {filtered.length} entries
-        </p>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" disabled>
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-          <span className="text-sm font-medium">1</span>
-          <Button variant="outline" size="sm" disabled>
-            <ChevronRight className="h-4 w-4" />
-          </Button>
-        </div>
-      </div>
     </div>
   );
 }

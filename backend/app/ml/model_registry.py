@@ -1,6 +1,16 @@
 """
-Model registry for versioning and managing ML models.
-File-based storage for prototype; can be extended to MLflow.
+Model Registry – Versioned Model Management
+=============================================
+
+Manages model versions, metadata, and lifecycle for the ML ranking
+models. Provides versioning, A/B comparison, rollback, and
+integration with MLflow for experiment tracking.
+
+Models are stored as:
+    models/<model_name>/<version>/
+        model.bin          – Serialized model weights
+        metadata.json      – Training config, metrics, feature names
+        metrics.json       – Evaluation metrics on holdout set
 """
 
 from __future__ import annotations
@@ -8,237 +18,342 @@ from __future__ import annotations
 import json
 import logging
 import os
-import pickle
 import shutil
-from dataclasses import dataclass, field, asdict
+import time
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
-
-DEFAULT_REGISTRY_PATH = "model_registry"
 
 
 @dataclass
 class ModelVersion:
-    """Metadata for a registered model version."""
-    name: str
+    """Metadata for a single model version."""
+    model_name: str
     version: str
-    stage: str = "development"  # development, staging, production, archived
-    metrics: dict[str, float] = field(default_factory=dict)
-    params: dict[str, Any] = field(default_factory=dict)
-    created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
-    path: str = ""
+    created_at: str
+    status: str = "registered"  # registered, staging, production, archived
+    training_config: Dict[str, Any] = field(default_factory=dict)
+    training_metrics: Dict[str, Any] = field(default_factory=dict)
+    evaluation_metrics: Dict[str, Any] = field(default_factory=dict)
+    feature_names: List[str] = field(default_factory=list)
     description: str = ""
-    tags: dict[str, str] = field(default_factory=dict)
+    tags: List[str] = field(default_factory=list)
+    artifact_path: str = ""
 
-    def to_dict(self) -> dict[str, Any]:
-        return asdict(self)
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "model_name": self.model_name,
+            "version": self.version,
+            "created_at": self.created_at,
+            "status": self.status,
+            "training_config": self.training_config,
+            "training_metrics": self.training_metrics,
+            "evaluation_metrics": self.evaluation_metrics,
+            "feature_names": self.feature_names,
+            "description": self.description,
+            "tags": self.tags,
+            "artifact_path": self.artifact_path,
+        }
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> ModelVersion:
-        return cls(**{k: v for k, v in data.items() if k in cls.__dataclass_fields__})
+    def from_dict(cls, data: Dict[str, Any]) -> "ModelVersion":
+        return cls(**data)
 
 
 class ModelRegistry:
     """
-    File-based model registry for versioning ML models.
+    Registry for managing ML model versions.
 
-    Stores model artifacts and metadata in a structured directory.
+    Stores model artifacts and metadata in a local directory structure.
+    Supports promotion (staging → production), rollback, and comparison.
+
+    Usage:
+        registry = ModelRegistry("models/")
+        registry.register("ranker", "v1.0", model_path, metrics)
+        production_model = registry.get_production("ranker")
     """
 
-    def __init__(self, registry_path: str = DEFAULT_REGISTRY_PATH):
-        self.registry_path = Path(registry_path)
-        self.registry_path.mkdir(parents=True, exist_ok=True)
-        self._index_file = self.registry_path / "index.json"
-        self._load_index()
+    def __init__(self, base_path: str = "models") -> None:
+        self._base_path = Path(base_path)
+        self._base_path.mkdir(parents=True, exist_ok=True)
+        self._registry_file = self._base_path / "registry.json"
+        self._models: Dict[str, Dict[str, ModelVersion]] = {}
+        self._load_registry()
 
-    def _load_index(self) -> None:
-        """Load the model index from disk."""
-        if self._index_file.exists():
-            with open(self._index_file) as f:
-                self._index: dict[str, list[dict]] = json.load(f)
-        else:
-            self._index = {}
-            self._save_index()
+    def _load_registry(self) -> None:
+        """Load registry state from disk."""
+        if self._registry_file.exists():
+            try:
+                with open(self._registry_file) as f:
+                    data = json.load(f)
+                for name, versions in data.items():
+                    self._models[name] = {
+                        v: ModelVersion.from_dict(meta)
+                        for v, meta in versions.items()
+                    }
+                logger.info(
+                    "Loaded model registry: %d models, %d total versions",
+                    len(self._models),
+                    sum(len(v) for v in self._models.values()),
+                )
+            except (json.JSONDecodeError, KeyError) as e:
+                logger.warning("Failed to load registry: %s", e)
+                self._models = {}
 
-    def _save_index(self) -> None:
-        """Persist the model index to disk."""
-        with open(self._index_file, "w") as f:
-            json.dump(self._index, f, indent=2)
+    def _save_registry(self) -> None:
+        """Persist registry state to disk."""
+        data = {
+            name: {v: meta.to_dict() for v, meta in versions.items()}
+            for name, versions in self._models.items()
+        }
+        with open(self._registry_file, "w") as f:
+            json.dump(data, f, indent=2)
 
-    def register_model(
+    def register(
         self,
-        name: str,
-        model: Any,
-        metrics: dict[str, float] | None = None,
-        params: dict[str, Any] | None = None,
+        model_name: str,
+        version: str,
+        model_path: str,
+        training_config: Optional[Dict[str, Any]] = None,
+        training_metrics: Optional[Dict[str, Any]] = None,
+        evaluation_metrics: Optional[Dict[str, Any]] = None,
+        feature_names: Optional[List[str]] = None,
         description: str = "",
-        tags: dict[str, str] | None = None,
+        tags: Optional[List[str]] = None,
     ) -> ModelVersion:
         """
         Register a new model version.
 
+        Copies the model artifact into the registry directory structure
+        and records metadata.
+
         Args:
-            name: Model name (e.g., 'ranker', 'embedder')
-            model: The model object (must be picklable)
-            metrics: Evaluation metrics (ndcg, map, etc.)
-            params: Model hyperparameters
-            description: Human-readable description
-            tags: Key-value tags
+            model_name: Name of the model (e.g. "ranker", "reranker").
+            version: Version string (e.g. "v1.0", "2024-01-15").
+            model_path: Path to the model artifact file.
+            training_config: Training hyperparameters.
+            training_metrics: Metrics from training (loss, etc.).
+            evaluation_metrics: Metrics from evaluation (NDCG, MAP, etc.).
+            feature_names: Ordered list of feature names.
+            description: Human-readable description.
+            tags: Tags for filtering (e.g. ["production", "v2"]).
 
         Returns:
-            ModelVersion with assigned version number
+            ModelVersion with the registered metadata.
         """
-        if name not in self._index:
-            self._index[name] = []
+        # Create artifact directory
+        artifact_dir = self._base_path / model_name / version
+        artifact_dir.mkdir(parents=True, exist_ok=True)
 
-        # Auto-increment version
-        existing_versions = [v["version"] for v in self._index[name]]
-        if existing_versions:
-            max_ver = max(int(v.split(".")[-1]) for v in existing_versions if v.startswith("v"))
-            version = f"v{max_ver + 1}"
+        # Copy model artifact
+        artifact_dest = artifact_dir / "model.bin"
+        if os.path.exists(model_path):
+            shutil.copy2(model_path, artifact_dest)
         else:
-            version = "v1"
+            logger.warning("Model file not found at %s, registering metadata only", model_path)
 
-        # Create model directory
-        model_dir = self.registry_path / name / version
-        model_dir.mkdir(parents=True, exist_ok=True)
-
-        # Save model artifact
-        model_path = model_dir / "model.pkl"
-        with open(model_path, "wb") as f:
-            pickle.dump(model, f)
-
-        # Create version metadata
-        mv = ModelVersion(
-            name=name,
+        # Save metadata
+        metadata = ModelVersion(
+            model_name=model_name,
             version=version,
-            metrics=metrics or {},
-            params=params or {},
-            path=str(model_path),
+            created_at=datetime.now(timezone.utc).isoformat(),
+            status="registered",
+            training_config=training_config or {},
+            training_metrics=training_metrics or {},
+            evaluation_metrics=evaluation_metrics or {},
+            feature_names=feature_names or [],
             description=description,
-            tags=tags or {},
+            tags=tags or [],
+            artifact_path=str(artifact_dest),
         )
 
-        # Save version metadata
-        meta_path = model_dir / "metadata.json"
+        # Save metadata file
+        meta_path = artifact_dir / "metadata.json"
         with open(meta_path, "w") as f:
-            json.dump(mv.to_dict(), f, indent=2)
+            json.dump(metadata.to_dict(), f, indent=2)
 
-        # Update index
-        self._index[name].append(mv.to_dict())
-        self._save_index()
+        # Update registry
+        if model_name not in self._models:
+            self._models[model_name] = {}
+        self._models[model_name][version] = metadata
+        self._save_registry()
 
-        logger.info("Registered model %s %s at %s", name, version, model_path)
-        return mv
+        logger.info("Registered model %s/%s at %s", model_name, version, artifact_dest)
+        return metadata
 
-    def load_model(self, name: str, version: str | None = None) -> Any:
+    def get(self, model_name: str, version: str) -> Optional[ModelVersion]:
+        """Get metadata for a specific model version."""
+        return self._models.get(model_name, {}).get(version)
+
+    def get_latest(self, model_name: str) -> Optional[ModelVersion]:
+        """Get the latest registered version of a model."""
+        versions = self._models.get(model_name, {})
+        if not versions:
+            return None
+        # Sort by created_at descending
+        sorted_versions = sorted(
+            versions.values(),
+            key=lambda v: v.created_at,
+            reverse=True,
+        )
+        return sorted_versions[0]
+
+    def get_production(self, model_name: str) -> Optional[ModelVersion]:
+        """Get the current production version of a model."""
+        versions = self._models.get(model_name, {})
+        for v in versions.values():
+            if v.status == "production":
+                return v
+        return None
+
+    def get_staging(self, model_name: str) -> Optional[ModelVersion]:
+        """Get the current staging version of a model."""
+        versions = self._models.get(model_name, {})
+        for v in versions.values():
+            if v.status == "staging":
+                return v
+        return None
+
+    def list_versions(self, model_name: str) -> List[ModelVersion]:
+        """List all versions of a model, newest first."""
+        versions = self._models.get(model_name, {})
+        return sorted(
+            versions.values(),
+            key=lambda v: v.created_at,
+            reverse=True,
+        )
+
+    def list_models(self) -> List[str]:
+        """List all registered model names."""
+        return list(self._models.keys())
+
+    def promote(self, model_name: str, version: str, target_status: str) -> bool:
         """
-        Load a model by name and optional version.
+        Promote a model version to a new status.
 
-        Args:
-            name: Model name
-            version: Specific version (loads latest if None)
+        Common transitions:
+            registered → staging
+            staging → production
+            production → archived
 
-        Returns:
-            The deserialized model object
+        When promoting to production, the current production model
+        is automatically moved to archived.
         """
-        if name not in self._index or not self._index[name]:
-            raise ValueError(f"No models registered for '{name}'")
+        mv = self.get(model_name, version)
+        if mv is None:
+            logger.error("Model %s/%s not found", model_name, version)
+            return False
 
-        if version is None:
-            # Load latest
-            entry = self._index[name][-1]
-        else:
-            matches = [v for v in self._index[name] if v["version"] == version]
-            if not matches:
-                raise ValueError(f"Version {version} not found for model '{name}'")
-            entry = matches[0]
+        # Archive current production model if promoting to production
+        if target_status == "production":
+            current_prod = self.get_production(model_name)
+            if current_prod and current_prod.version != version:
+                current_prod.status = "archived"
+                logger.info(
+                    "Archived previous production model %s/%s",
+                    model_name, current_prod.version,
+                )
 
-        model_path = entry["path"]
-        with open(model_path, "rb") as f:
-            model = pickle.load(f)
+        old_status = mv.status
+        mv.status = target_status
+        self._save_registry()
 
-        logger.info("Loaded model %s %s", name, entry["version"])
-        return model
+        logger.info(
+            "Promoted %s/%s: %s → %s",
+            model_name, version, old_status, target_status,
+        )
+        return True
 
-    def get_best_model(self, name: str, metric: str = "ndcg_at_10") -> ModelVersion | None:
-        """Get the model version with the best score on a given metric."""
-        if name not in self._index or not self._index[name]:
+    def rollback(self, model_name: str) -> Optional[ModelVersion]:
+        """
+        Rollback to the previous production model.
+
+        Finds the most recent archived version and promotes it to
+        production.
+        """
+        versions = self._models.get(model_name, {})
+        archived = sorted(
+            [v for v in versions.values() if v.status == "archived"],
+            key=lambda v: v.created_at,
+            reverse=True,
+        )
+
+        if not archived:
+            logger.error("No archived version available for rollback of %s", model_name)
             return None
 
-        versions = self._index[name]
-        best = max(
-            versions,
-            key=lambda v: v.get("metrics", {}).get(metric, 0.0),
-        )
-        return ModelVersion.from_dict(best)
+        target = archived[0]
+        self.promote(model_name, target.version, "production")
+        logger.info("Rolled back %s to version %s", model_name, target.version)
+        return target
 
-    def compare_versions(self, name: str, v1: str, v2: str) -> dict[str, Any]:
-        """Compare two model versions on metrics."""
-        versions = {v["version"]: v for v in self._index.get(name, [])}
-        if v1 not in versions or v2 not in versions:
-            raise ValueError(f"Version not found: {v1} or {v2}")
+    def compare(
+        self,
+        model_name: str,
+        version_a: str,
+        version_b: str,
+    ) -> Dict[str, Any]:
+        """
+        Compare two model versions.
 
-        m1 = versions[v1].get("metrics", {})
-        m2 = versions[v2].get("metrics", {})
+        Returns a dict with metric differences and the better version
+        for each metric.
+        """
+        mv_a = self.get(model_name, version_a)
+        mv_b = self.get(model_name, version_b)
 
-        all_keys = set(m1.keys()) | set(m2.keys())
-        comparison = {}
-        for key in sorted(all_keys):
-            val1 = m1.get(key, 0.0)
-            val2 = m2.get(key, 0.0)
-            comparison[key] = {
-                v1: val1,
-                v2: val2,
-                "diff": val2 - val1,
-                "improved": val2 > val1,
-            }
+        if not mv_a or not mv_b:
+            return {"error": "One or both versions not found"}
+
+        comparison = {
+            "model_name": model_name,
+            "version_a": version_a,
+            "version_b": version_b,
+            "metrics_comparison": {},
+            "config_diff": {},
+        }
+
+        # Compare evaluation metrics
+        all_metrics = set(mv_a.evaluation_metrics.keys()) | set(mv_b.evaluation_metrics.keys())
+        for metric in all_metrics:
+            val_a = mv_a.evaluation_metrics.get(metric)
+            val_b = mv_b.evaluation_metrics.get(metric)
+
+            if val_a is not None and val_b is not None:
+                diff = val_b - val_a
+                better = version_b if diff > 0 else version_a if diff < 0 else "tie"
+                comparison["metrics_comparison"][metric] = {
+                    "version_a": val_a,
+                    "version_b": val_b,
+                    "difference": diff,
+                    "better": better,
+                }
 
         return comparison
 
-    def promote_model(self, name: str, version: str, stage: str) -> ModelVersion:
-        """
-        Promote a model to a new stage (staging, production, archived).
+    def delete(self, model_name: str, version: str) -> bool:
+        """Delete a model version and its artifacts."""
+        mv = self.get(model_name, version)
+        if mv is None:
+            return False
 
-        If promoting to production, demote current production model to staging.
-        """
-        if name not in self._index:
-            raise ValueError(f"Model '{name}' not found")
+        if mv.status == "production":
+            logger.error("Cannot delete production model. Promote another version first.")
+            return False
 
-        # Demote current production model if promoting to production
-        if stage == "production":
-            for entry in self._index[name]:
-                if entry["stage"] == "production":
-                    entry["stage"] = "staging"
-                    logger.info("Demoted %s %s to staging", name, entry["version"])
+        # Remove artifact directory
+        artifact_dir = self._base_path / model_name / version
+        if artifact_dir.exists():
+            shutil.rmtree(artifact_dir)
 
-        # Promote target
-        for entry in self._index[name]:
-            if entry["version"] == version:
-                entry["stage"] = stage
-                self._save_index()
+        # Remove from registry
+        del self._models[model_name][version]
+        if not self._models[model_name]:
+            del self._models[model_name]
 
-                # Update metadata file
-                meta_path = Path(entry["path"]).parent / "metadata.json"
-                mv = ModelVersion.from_dict(entry)
-                with open(meta_path, "w") as f:
-                    json.dump(mv.to_dict(), f, indent=2)
-
-                logger.info("Promoted %s %s to %s", name, version, stage)
-                return mv
-
-        raise ValueError(f"Version {version} not found for model '{name}'")
-
-    def list_models(self) -> dict[str, list[str]]:
-        """List all registered models and their versions."""
-        return {
-            name: [v["version"] for v in versions]
-            for name, versions in self._index.items()
-        }
-
-    def list_versions(self, name: str) -> list[ModelVersion]:
-        """List all versions of a model."""
-        return [ModelVersion.from_dict(v) for v in self._index.get(name, [])]
+        self._save_registry()
+        logger.info("Deleted model %s/%s", model_name, version)
+        return True
