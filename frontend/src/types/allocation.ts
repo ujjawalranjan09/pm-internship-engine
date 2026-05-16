@@ -1,4 +1,12 @@
-import type { AllocationStatus } from "./common";
+export type AllocationStatus =
+  | "pending"
+  | "running"
+  | "completed"
+  | "failed"
+  | "allocated"
+  | "confirmed"
+  | "declined"
+  | "accepted";
 
 export interface AllocationCycle {
   id: string;
@@ -6,12 +14,11 @@ export interface AllocationCycle {
   status: AllocationStatus;
   totalCandidates: number;
   totalOpportunities: number;
-  totalAllocations: number;
-  fairnessMetrics: FairnessMetrics;
-  startedAt?: string;
-  completedAt?: string;
-  createdBy: string;
+  allocatedCount: number;
+  unallocatedCount: number;
+  fairnessScore?: number;
   createdAt: string;
+  completedAt?: string;
 }
 
 export interface AllocationResult {
@@ -22,67 +29,21 @@ export interface AllocationResult {
   opportunityId: string;
   opportunityTitle: string;
   employerName: string;
-  matchScore: number;
+  location: string;
+  sector: string;
+  stipend: number;
+  allocationScore: number;
+  status: AllocationStatus;
   allocatedAt: string;
-  status: "allocated" | "confirmed" | "declined";
+  confirmedAt?: string;
+  declinedAt?: string;
 }
 
-export interface FairnessMetrics {
-  genderDistribution: Record<string, number>;
-  categoryDistribution: Record<string, number>;
-  stateDistribution: Record<string, number>;
-  districtDistribution: Record<string, number>;
-  ruralUrbanRatio: { rural: number; urban: number };
-  representationIndex: number;
-}
-
-export interface PolicyConfig {
-  id: string;
-  name: string;
-  description: string;
-  weights: {
-    skillMatch: number;
-    locationPreference: number;
-    educationMatch: number;
-    candidatePreference: number;
-    fairnessAdjustment: number;
-  };
-  thresholds: {
-    minimumMatchScore: number;
-    minimumProfileCompletion: number;
-  };
-  representationTargets: {
-    gender: Record<string, number>;
-    category: Record<string, number>;
-    ruralUrban: { rural: number; urban: number };
-  };
-  isActive: boolean;
-  updatedAt: string;
-}
-
-export interface AuditEntry {
-  id: string;
-  action: string;
-  entityType: string;
-  entityId: string;
-  performedBy: string;
-  performedByName: string;
-  details: Record<string, unknown>;
-  timestamp: string;
-}
-
-export interface OverrideRequest {
-  id: string;
-  candidateId: string;
-  candidateName: string;
-  originalOpportunityId: string;
-  originalOpportunityTitle: string;
-  targetOpportunityId: string;
-  targetOpportunityTitle: string;
-  reason: string;
-  status: "pending" | "approved" | "rejected";
-  requestedBy: string;
-  reviewedBy?: string;
-  createdAt: string;
-  reviewedAt?: string;
+export interface FairnessReport {
+  overallScore: number;
+  categoryBreakdown: Record<string, { allocated: number; total: number; rate: number }>;
+  stateBreakdown: Record<string, { allocated: number; total: number; rate: number }>;
+  sectorBreakdown: Record<string, { allocated: number; total: number; rate: number }>;
+  giniCoefficient: number;
+  disparityIndex: number;
 }

@@ -33,4 +33,8 @@ export interface MatchRecommendation {
   matchScore: number;
   explanation: string;
   topFactors: MatchFactor[];
+  // Extended fields used in UI pages
+  workMode?: string;
+  duration?: number;
+  skills?: string[];
 }

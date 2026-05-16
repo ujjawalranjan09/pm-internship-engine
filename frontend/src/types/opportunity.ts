@@ -29,16 +29,21 @@ export interface Opportunity {
 export interface OpportunityListItem {
   id: string;
   title: string;
+  description?: string;
   employerName: string;
   sector: string;
   location: string;
+  state?: string;
   stipend: number;
   duration: number;
+  durationMonths?: number;
+  workMode?: string;
   capacity: number;
   filledSlots: number;
   requiredSkills: string[];
   isActive: boolean;
   matchScore?: number;
+  createdAt?: string;
 }
 
 export interface CreateOpportunityRequest {
@@ -67,6 +72,7 @@ export interface OpportunityFilter {
   state?: string;
   location?: string;
   skills?: string[];
+  search?: string;
   minStipend?: number;
   maxStipend?: number;
   isActive?: boolean;

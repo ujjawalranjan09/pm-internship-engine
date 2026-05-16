@@ -1,4 +1,4 @@
-import { apiGet } from "./api-client";
+import { apiGet, apiPost } from "./api-client";
 import { API_ROUTES } from "@/lib/constants";
 import type { ApiResponse } from "@/types/common";
 import type { Match, MatchRecommendation } from "@/types/match";
@@ -12,13 +12,16 @@ const MOCK_RECOMMENDATIONS: MatchRecommendation[] = [
     location: "Bangalore",
     stipend: 15000,
     matchScore: 87,
-    explanation: "Strong match based on Python and React skills, aligning with the tech stack requirements. Location preference partially met.",
+    explanation: "Strong match based on Python and React skills.",
     topFactors: [
       { name: "Skill Match", weight: 0.35, score: 92, description: "3 of 4 required skills matched" },
       { name: "Education", weight: 0.25, score: 85, description: "B.Tech in CS meets requirements" },
-      { name: "Location", weight: 0.2, score: 70, description: "Preferred location, different from current" },
+      { name: "Location", weight: 0.2, score: 70, description: "Preferred location" },
       { name: "Preference", weight: 0.2, score: 90, description: "IT sector is top preference" },
     ],
+    workMode: "hybrid",
+    duration: 6,
+    skills: ["Python", "React", "SQL"],
   },
   {
     opportunityId: "o2",
@@ -28,29 +31,16 @@ const MOCK_RECOMMENDATIONS: MatchRecommendation[] = [
     location: "Mumbai",
     stipend: 12000,
     matchScore: 72,
-    explanation: "Good match with SQL and analytical skills. Finance sector aligns with secondary interest.",
+    explanation: "Good match with SQL and analytical skills.",
     topFactors: [
       { name: "Skill Match", weight: 0.35, score: 65, description: "2 of 3 required skills matched" },
       { name: "Education", weight: 0.25, score: 80, description: "Quantitative background fits" },
       { name: "Location", weight: 0.2, score: 95, description: "Mumbai is home city" },
       { name: "Preference", weight: 0.2, score: 55, description: "Finance is secondary preference" },
     ],
-  },
-  {
-    opportunityId: "o6",
-    title: "Cloud Infrastructure Intern",
-    employerName: "CloudFirst",
-    sector: "Information Technology",
-    location: "Hyderabad",
-    stipend: 16000,
-    matchScore: 79,
-    explanation: "Good match for IT sector. Some skills transferable from software development background.",
-    topFactors: [
-      { name: "Skill Match", weight: 0.35, score: 50, description: "1 of 3 required skills matched" },
-      { name: "Education", weight: 0.25, score: 90, description: "CS background is ideal" },
-      { name: "Location", weight: 0.2, score: 75, description: "Acceptable location" },
-      { name: "Preference", weight: 0.2, score: 95, description: "IT is primary sector preference" },
-    ],
+    workMode: "onsite",
+    duration: 4,
+    skills: ["Excel", "SQL", "Data Analysis"],
   },
 ];
 
@@ -93,7 +83,7 @@ const MOCK_MATCHES: Match[] = [
 
 export async function getRecommendations(): Promise<MatchRecommendation[]> {
   try {
-    const response = await apiGet<ApiResponse<MatchRecommendation[]>>(API_ROUTES.MATCHES.RECOMMENDATIONS);
+    const response = await apiGet<ApiResponse<MatchRecommendation[]>>(API_ROUTES.MATCHING.MY_MATCHES);
     return response.data;
   } catch {
     return MOCK_RECOMMENDATIONS;
@@ -102,9 +92,27 @@ export async function getRecommendations(): Promise<MatchRecommendation[]> {
 
 export async function getMatchesForOpportunity(opportunityId: string): Promise<Match[]> {
   try {
-    const response = await apiGet<ApiResponse<Match[]>>(API_ROUTES.MATCHES.FOR_OPPORTUNITY(opportunityId));
+    const response = await apiGet<ApiResponse<Match[]>>(
+      `${API_ROUTES.MATCHING.MATCHES}?opportunityId=${opportunityId}`
+    );
     return response.data;
   } catch {
-    return MOCK_MATCHES;
+    return MOCK_MATCHES.filter((m) => m.opportunityId === opportunityId);
+  }
+}
+
+export async function triggerMatching(): Promise<void> {
+  try {
+    await apiPost(API_ROUTES.MATCHING.TRIGGER, {});
+  } catch {
+    await new Promise((r) => setTimeout(r, 1000));
+  }
+}
+
+export async function triggerBatchMatching(): Promise<void> {
+  try {
+    await apiPost(API_ROUTES.MATCHING.BATCH_TRIGGER, {});
+  } catch {
+    await new Promise((r) => setTimeout(r, 1500));
   }
 }
