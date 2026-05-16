@@ -1,6 +1,7 @@
 """Allocation endpoints: run allocation, get results, override."""
 
 from datetime import UTC, datetime
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
@@ -30,7 +31,7 @@ async def run_allocation(
     payload: AllocationRunRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_async_session),
-):
+) -> Any:
     """Trigger a new allocation cycle (admin only)."""
     if current_user.role != "admin":
         raise HTTPException(
@@ -74,7 +75,7 @@ async def run_allocation(
 async def list_cycles(
     limit: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_async_session),
-):
+) -> Any:
     """List recent allocation cycles."""
     result = await db.execute(select(AllocationCycle).order_by(AllocationCycle.created_at.desc()).limit(limit))
     cycles = result.scalars().all()
@@ -85,7 +86,7 @@ async def list_cycles(
 async def get_cycle(
     cycle_id: int,
     db: AsyncSession = Depends(get_async_session),
-):
+) -> Any:
     """Get allocation cycle details."""
     result = await db.execute(select(AllocationCycle).where(AllocationCycle.id == cycle_id))
     cycle = result.scalar_one_or_none()
@@ -100,7 +101,7 @@ async def get_cycle_results(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_async_session),
-):
+) -> Any:
     """Get allocation results for a specific cycle."""
     result = await db.execute(
         select(Allocation).where(Allocation.allocation_cycle_id == cycle_id).order_by(Allocation.created_at.desc())
@@ -123,7 +124,7 @@ async def get_cycle_results(
 async def get_cycle_stats(
     cycle_id: int,
     db: AsyncSession = Depends(get_async_session),
-):
+) -> Any:
     """Get aggregate statistics for an allocation cycle."""
     result = await db.execute(select(Allocation).where(Allocation.allocation_cycle_id == cycle_id))
     allocations = result.scalars().all()
@@ -150,7 +151,7 @@ async def override_allocation(
     payload: AllocationOverride,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_async_session),
-):
+) -> Any:
     """Manually override an allocation (admin only)."""
     if current_user.role != "admin":
         raise HTTPException(

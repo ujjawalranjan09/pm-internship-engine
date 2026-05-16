@@ -24,14 +24,7 @@ class AllocationService:
         self.db = db
 
     async def run_allocation(self, cycle_id: int) -> dict[str, Any]:
-        """Run the full allocation pipeline for a cycle.
-
-        1. Load all matches above threshold
-        2. Build constraint programming model
-        3. Solve for optimal allocation
-        4. Persist allocations and waitlist entries
-        """
-        # Load matches
+        """Run the full allocation pipeline for a cycle."""
         matches_result = await self.db.execute(select(Match).where(Match.score >= 0.1).order_by(Match.score.desc()))
         matches = matches_result.scalars().all()
 
@@ -39,20 +32,16 @@ class AllocationService:
             logger.warning("No matches found for allocation cycle %d", cycle_id)
             return {"cycle_id": cycle_id, "allocations": 0, "waitlisted": 0}
 
-        # Load opportunities for capacity
         opp_ids = list(set(m.opportunity_id for m in matches))
         opp_result = await self.db.execute(select(Opportunity).where(Opportunity.id.in_(opp_ids)))
         opportunities = {o.id: o for o in opp_result.scalars().all()}
 
-        # Load candidates
         cand_ids = list(set(m.candidate_id for m in matches))
         cand_result = await self.db.execute(select(CandidateProfile).where(CandidateProfile.id.in_(cand_ids)))
         candidates = {c.id: c for c in cand_result.scalars().all()}
 
-        # Build and solve the optimization model
-        allocations, waitlisted = self._solve_allocation(matches, opportunities, candidates)
+        allocations, waitlisted = self._solve_allocation(list(matches), opportunities, candidates)
 
-        # Persist allocations
         allocated_count = 0
         for match_id, (candidate_id, opportunity_id) in allocations.items():
             match_obj = next((m for m in matches if m.id == match_id), None)
@@ -70,7 +59,6 @@ class AllocationService:
             self.db.add(allocation)
             allocated_count += 1
 
-        # Persist waitlist
         waitlist_count = 0
         for position, (candidate_id, opportunity_id, _match_id) in enumerate(waitlisted, start=1):
             entry = WaitlistEntry(
@@ -103,28 +91,16 @@ class AllocationService:
         opportunities: dict[int, Opportunity],
         candidates: dict[int, CandidateProfile],
     ) -> tuple[dict[int, tuple[int, int]], list[tuple[int, int, int]]]:
-        """Solve the constrained allocation problem using OR-Tools.
-
-        Maximizes total match score subject to:
-        - Each candidate gets at most 1 allocation
-        - Each opportunity's capacity is respected
-        - Only eligible match pairs are considered
-
-        Returns:
-            Tuple of (allocations dict mapping match_id -> (candidate_id, opportunity_id),
-                      waitlist entries as (candidate_id, opportunity_id, match_id))
-        """
+        """Solve the constrained allocation problem using OR-Tools."""
         solver = pywraplp.Solver.CreateSolver("SCIP")
         if solver is None:
             logger.error("Failed to create OR-Tools solver")
             return {}, []
 
-        # Decision variables: x[i] = 1 if match i is selected
         x: dict[int, pywraplp.Variable] = {}
         for match in matches:
             x[match.id] = solver.IntVar(0, 1, f"x_{match.id}")
 
-        # Constraint 1: Each candidate allocated at most once
         candidate_matches: dict[int, list[int]] = {}
         for match in matches:
             candidate_matches.setdefault(match.candidate_id, []).append(match.id)
@@ -132,7 +108,6 @@ class AllocationService:
         for _candidate_id, match_ids in candidate_matches.items():
             solver.Add(sum(x[mid] for mid in match_ids) <= 1)
 
-        # Constraint 2: Opportunity capacity limits
         opp_matches: dict[int, list[int]] = {}
         for match in matches:
             opp_matches.setdefault(match.opportunity_id, []).append(match.id)
@@ -141,13 +116,11 @@ class AllocationService:
             capacity = opportunities[opp_id].capacity if opp_id in opportunities else 1
             solver.Add(sum(x[mid] for mid in match_ids) <= capacity)
 
-        # Objective: maximize total weighted score
         objective = solver.Objective()
         for match in matches:
             objective.SetCoefficient(x[match.id], match.score)
         objective.SetMaximization()
 
-        # Solve
         status = solver.Solve()
 
         allocations: dict[int, tuple[int, int]] = {}
@@ -158,7 +131,6 @@ class AllocationService:
                 if x[match.id].solution_value() > 0.5:
                     allocations[match.id] = (match.candidate_id, match.opportunity_id)
 
-            # Build waitlist from top non-allocated matches
             allocated_candidates = set(c for c, _ in allocations.values())
             allocated_opp_counts: dict[int, int] = {}
             for _, opp_id in allocations.values():
@@ -167,10 +139,8 @@ class AllocationService:
             for match in matches:
                 if match.id in allocations:
                     continue
-                # Only waitlist if candidate isn't already allocated
                 if match.candidate_id in allocated_candidates:
                     continue
-                # Only waitlist if opportunity has capacity
                 opp = opportunities.get(match.opportunity_id)
                 if opp is None:
                     continue

@@ -1,6 +1,7 @@
 """Eligibility service for hard-filter evaluation."""
 
 import logging
+from typing import Any
 
 from app.models.candidate import CandidateProfile
 from app.models.opportunity import Opportunity
@@ -16,18 +17,9 @@ class EligibilityService:
     """
 
     def is_eligible(self, candidate: CandidateProfile, opportunity: Opportunity) -> bool:
-        """Check if a candidate meets all hard eligibility criteria for an opportunity.
+        """Check if a candidate meets all hard eligibility criteria for an opportunity."""
+        criteria: dict[str, Any] = opportunity.eligibility_criteria or {}
 
-        Args:
-            candidate: The candidate profile to evaluate.
-            opportunity: The opportunity with eligibility criteria.
-
-        Returns:
-            True if the candidate is eligible, False otherwise.
-        """
-        criteria = opportunity.eligibility_criteria or {}
-
-        # Check minimum education
         if not self._check_education(candidate, criteria):
             logger.debug(
                 "Candidate %d failed education check for opportunity %d",
@@ -36,7 +28,6 @@ class EligibilityService:
             )
             return False
 
-        # Check state/district restrictions
         if not self._check_location_eligibility(candidate, criteria):
             logger.debug(
                 "Candidate %d failed location check for opportunity %d",
@@ -45,7 +36,6 @@ class EligibilityService:
             )
             return False
 
-        # Check social category restrictions (if any reservation quotas)
         if not self._check_category_eligibility(candidate, criteria):
             logger.debug(
                 "Candidate %d failed category check for opportunity %d",
@@ -54,7 +44,6 @@ class EligibilityService:
             )
             return False
 
-        # Check minimum profile completion
         min_completion = criteria.get("min_profile_completion", 0.0)
         if candidate.profile_completion_score < min_completion:
             logger.debug(
@@ -68,7 +57,7 @@ class EligibilityService:
 
         return True
 
-    def _check_education(self, candidate: CandidateProfile, criteria: dict) -> bool:
+    def _check_education(self, candidate: CandidateProfile, criteria: dict[str, Any]) -> bool:
         """Check if candidate meets education requirements."""
         min_education = criteria.get("min_education")
         if not min_education:
@@ -99,7 +88,7 @@ class EligibilityService:
 
         return candidate_level >= required_level
 
-    def _check_location_eligibility(self, candidate: CandidateProfile, criteria: dict) -> bool:
+    def _check_location_eligibility(self, candidate: CandidateProfile, criteria: dict[str, Any]) -> bool:
         """Check if candidate meets location-based eligibility."""
         allowed_states = criteria.get("allowed_states")
         if allowed_states and candidate.state and candidate.state.lower() not in [s.lower() for s in allowed_states]:
@@ -110,7 +99,7 @@ class EligibilityService:
             return False
 
         allowed_districts = criteria.get("allowed_districts")
-        if (  # noqa: SIM103
+        if (
             allowed_districts
             and candidate.district
             and candidate.district.lower() not in [d.lower() for d in allowed_districts]
@@ -119,7 +108,7 @@ class EligibilityService:
 
         return True
 
-    def _check_category_eligibility(self, candidate: CandidateProfile, criteria: dict) -> bool:
+    def _check_category_eligibility(self, candidate: CandidateProfile, criteria: dict[str, Any]) -> bool:
         """Check if candidate meets social category eligibility."""
         required_categories = criteria.get("required_social_categories")
         if required_categories:

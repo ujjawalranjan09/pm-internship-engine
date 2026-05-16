@@ -1,5 +1,7 @@
 """Matching endpoints: get recommendations and trigger batch matching."""
 
+from typing import Any
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -21,7 +23,7 @@ async def get_my_recommendations(
     top_k: int = Query(10, ge=1, le=100),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_async_session),
-):
+) -> Any:
     """Get top-K opportunity recommendations for the authenticated candidate."""
     result = await db.execute(select(CandidateProfile).where(CandidateProfile.user_id == current_user.id))
     profile = result.scalar_one_or_none()
@@ -42,7 +44,7 @@ async def get_candidate_matches(
     candidate_id: int,
     top_k: int = Query(10, ge=1, le=100),
     db: AsyncSession = Depends(get_async_session),
-):
+) -> Any:
     """Get matches for a specific candidate."""
     result = await db.execute(
         select(Match).where(Match.candidate_id == candidate_id).order_by(Match.score.desc()).limit(top_k)
@@ -56,7 +58,7 @@ async def get_opportunity_matches(
     opportunity_id: int,
     top_k: int = Query(10, ge=1, le=100),
     db: AsyncSession = Depends(get_async_session),
-):
+) -> Any:
     """Get top matches for a specific opportunity."""
     result = await db.execute(
         select(Match).where(Match.opportunity_id == opportunity_id).order_by(Match.score.desc()).limit(top_k)
@@ -69,7 +71,7 @@ async def get_opportunity_matches(
 async def trigger_matching(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_async_session),
-):
+) -> dict[str, Any]:
     """Trigger batch matching for all active candidates and opportunities (admin only)."""
     if current_user.role != "admin":
         raise HTTPException(

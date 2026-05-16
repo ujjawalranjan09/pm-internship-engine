@@ -5,7 +5,9 @@ with fairness-aware allocation using constrained optimization.
 """
 
 import logging
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from typing import Any
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -25,18 +27,18 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-async def _on_allocation_complete(data: dict) -> None:
+async def _on_allocation_complete(data: dict[str, Any]) -> None:
     """Handle allocation completion events."""
     logger.info("Allocation completed: %s", data)
 
 
-async def _on_candidate_registered(data: dict) -> None:
+async def _on_candidate_registered(data: dict[str, Any]) -> None:
     """Handle new candidate registration events."""
     logger.info("Candidate registered: %s", data)
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Application lifespan: startup and shutdown hooks."""
     logger.info("Starting %s v%s", settings.APP_NAME, settings.APP_VERSION)
 
@@ -81,7 +83,7 @@ app.include_router(v1_router, prefix=settings.API_V1_PREFIX)
 
 
 @app.get("/health", tags=["Health"])
-async def health_check():
+async def health_check() -> dict[str, Any]:
     """Health check endpoint for load balancers and monitoring."""
     return {
         "status": "healthy",

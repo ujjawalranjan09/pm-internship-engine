@@ -19,7 +19,7 @@ class Match(BaseModel):
         Integer, ForeignKey("opportunities.id", ondelete="CASCADE"), nullable=False, index=True
     )
     score: Mapped[float] = mapped_column(Float, nullable=False, index=True)
-    score_breakdown: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    score_breakdown: Mapped[dict[str, float] | None] = mapped_column(JSONB, nullable=True)
     explanation: Mapped[str | None] = mapped_column(Text, nullable=True)
     rank: Mapped[int | None] = mapped_column(Integer, nullable=True)
     status: Mapped[str] = mapped_column(

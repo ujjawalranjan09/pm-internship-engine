@@ -13,14 +13,14 @@ class EventBus:
     """Simple async in-memory publish/subscribe event bus."""
 
     def __init__(self) -> None:
-        self._subscribers: dict[str, list[Callable[..., Coroutine]]] = defaultdict(list)
+        self._subscribers: dict[str, list[Callable[..., Coroutine[Any, Any, Any]]]] = defaultdict(list)
 
-    def subscribe(self, event_type: str, handler: Callable[..., Coroutine]) -> None:
+    def subscribe(self, event_type: str, handler: Callable[..., Coroutine[Any, Any, Any]]) -> None:
         """Register an async handler for an event type."""
         self._subscribers[event_type].append(handler)
         logger.debug("Subscribed %s to event '%s'", handler.__name__, event_type)
 
-    def unsubscribe(self, event_type: str, handler: Callable[..., Coroutine]) -> None:
+    def unsubscribe(self, event_type: str, handler: Callable[..., Coroutine[Any, Any, Any]]) -> None:
         """Remove a handler from an event type."""
         if handler in self._subscribers[event_type]:
             self._subscribers[event_type].remove(handler)

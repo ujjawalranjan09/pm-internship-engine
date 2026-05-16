@@ -1,5 +1,7 @@
 """Admin endpoints: policy configuration, analytics, audit logs."""
 
+from typing import Any
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -28,7 +30,7 @@ class AuditLogResponse:
 async def get_analytics_overview(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_async_session),
-):
+) -> dict[str, Any]:
     """Get system-wide analytics overview (admin only)."""
     if current_user.role != "admin":
         raise HTTPException(
@@ -38,7 +40,9 @@ async def get_analytics_overview(
 
     candidates_count = (await db.execute(select(func.count()).select_from(CandidateProfile))).scalar() or 0
     opportunities_count = (
-        await db.execute(select(func.count()).select_from(Opportunity).where(Opportunity.is_active))
+        await db.execute(
+            select(func.count()).select_from(Opportunity).where(Opportunity.is_active == True)  # noqa: E712
+        )
     ).scalar() or 0
     matches_count = (await db.execute(select(func.count()).select_from(Match))).scalar() or 0
     users_count = (await db.execute(select(func.count()).select_from(User))).scalar() or 0
@@ -77,7 +81,7 @@ async def get_analytics_overview(
 async def get_matching_analytics(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_async_session),
-):
+) -> dict[str, Any]:
     """Get matching analytics (admin only)."""
     if current_user.role != "admin":
         raise HTTPException(
@@ -106,7 +110,7 @@ async def get_matching_analytics(
 @router.get("/policy")
 async def get_policy_config(
     current_user: User = Depends(get_current_user),
-):
+) -> dict[str, Any]:
     """Get current matching and fairness policy configuration."""
     if current_user.role != "admin":
         raise HTTPException(
@@ -134,7 +138,7 @@ async def get_audit_logs(
     entity_type: str | None = None,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_async_session),
-):
+) -> Any:
     """Get audit logs with optional filters (admin only)."""
     if current_user.role != "admin":
         raise HTTPException(

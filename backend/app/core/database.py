@@ -1,5 +1,7 @@
 """Async SQLAlchemy engine and session factory."""
 
+from collections.abc import AsyncGenerator
+
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
     async_sessionmaker,
@@ -25,7 +27,7 @@ async_session_factory = async_sessionmaker(
 )
 
 
-async def get_async_session() -> AsyncSession:
+async def get_async_session() -> AsyncGenerator[AsyncSession, None]:
     """Yield an async database session for dependency injection."""
     async with async_session_factory() as session:
         try:

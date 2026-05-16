@@ -1,5 +1,7 @@
 """Candidate profile endpoints: CRUD and profile completion."""
 
+from typing import Any
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -38,7 +40,7 @@ async def create_candidate(
     payload: CandidateCreate,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_async_session),
-):
+) -> Any:
     """Create a candidate profile for the authenticated user."""
     result = await db.execute(select(CandidateProfile).where(CandidateProfile.user_id == current_user.id))
     if result.scalar_one_or_none() is not None:
@@ -62,7 +64,7 @@ async def create_candidate(
 async def get_my_profile(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_async_session),
-):
+) -> Any:
     """Get the authenticated user's candidate profile."""
     result = await db.execute(select(CandidateProfile).where(CandidateProfile.user_id == current_user.id))
     profile = result.scalar_one_or_none()
@@ -76,7 +78,7 @@ async def update_my_profile(
     payload: CandidateUpdate,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_async_session),
-):
+) -> Any:
     """Update the authenticated user's candidate profile."""
     result = await db.execute(select(CandidateProfile).where(CandidateProfile.user_id == current_user.id))
     profile = result.scalar_one_or_none()
@@ -99,7 +101,7 @@ async def list_candidates(
     state: str | None = None,
     social_category: str | None = None,
     db: AsyncSession = Depends(get_async_session),
-):
+) -> Any:
     """List all candidate profiles with optional filters."""
     query = select(CandidateProfile)
     count_query = select(func.count()).select_from(CandidateProfile)
@@ -130,7 +132,7 @@ async def list_candidates(
 async def get_candidate(
     candidate_id: int,
     db: AsyncSession = Depends(get_async_session),
-):
+) -> Any:
     """Get a candidate profile by ID."""
     result = await db.execute(select(CandidateProfile).where(CandidateProfile.id == candidate_id))
     profile = result.scalar_one_or_none()
@@ -143,7 +145,7 @@ async def get_candidate(
 async def get_profile_completion(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_async_session),
-):
+) -> dict[str, Any]:
     """Get profile completion details with suggestions."""
     result = await db.execute(select(CandidateProfile).where(CandidateProfile.user_id == current_user.id))
     profile = result.scalar_one_or_none()

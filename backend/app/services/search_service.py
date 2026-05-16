@@ -118,24 +118,11 @@ class SearchService:
         from_: int = 0,
         size: int = 20,
     ) -> dict[str, Any]:
-        """Search opportunities with full-text and faceted filters.
-
-        Args:
-            query: Free-text search query.
-            sector: Filter by sector.
-            state: Filter by state.
-            work_mode: Filter by work mode (remote/hybrid/onsite).
-            skills: Filter by required skills.
-            from_: Pagination offset.
-            size: Page size.
-
-        Returns:
-            Search results with hits, total count, and aggregations.
-        """
+        """Search opportunities with full-text and faceted filters."""
         client = await self._get_client()
 
-        must_clauses: list[dict] = []
-        filter_clauses: list[dict] = []
+        must_clauses: list[dict[str, Any]] = []
+        filter_clauses: list[dict[str, Any]] = []
 
         if query:
             must_clauses.append(

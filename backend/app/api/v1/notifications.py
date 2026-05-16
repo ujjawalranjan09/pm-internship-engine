@@ -1,5 +1,7 @@
 """Notification endpoints: list and mark as read."""
 
+from typing import Any
+
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -20,7 +22,7 @@ async def list_notifications(
     unread_only: bool = False,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_async_session),
-):
+) -> Any:
     """List notifications for the authenticated user."""
     query = select(Notification).where(Notification.user_id == current_user.id)
     count_query = select(func.count()).select_from(Notification).where(Notification.user_id == current_user.id)
@@ -58,7 +60,7 @@ async def mark_notification_read(
     notification_id: int,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_async_session),
-):
+) -> dict[str, str]:
     """Mark a single notification as read."""
     result = await db.execute(
         select(Notification).where(
@@ -78,7 +80,7 @@ async def mark_notification_read(
 async def mark_all_notifications_read(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_async_session),
-):
+) -> dict[str, str]:
     """Mark all notifications as read for the authenticated user."""
     await db.execute(
         update(Notification)

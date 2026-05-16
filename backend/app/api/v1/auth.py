@@ -19,7 +19,7 @@ router = APIRouter(prefix="/auth", tags=["Authentication"])
 
 
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
-async def register(payload: UserCreate, db: AsyncSession = Depends(get_async_session)):
+async def register(payload: UserCreate, db: AsyncSession = Depends(get_async_session)) -> UserResponse:
     """Register a new user account."""
     result = await db.execute(select(User).where(User.email == payload.email))
     if result.scalar_one_or_none() is not None:
@@ -35,11 +35,11 @@ async def register(payload: UserCreate, db: AsyncSession = Depends(get_async_ses
     db.add(user)
     await db.flush()
     await db.refresh(user)
-    return user
+    return user  # type: ignore[return-value]
 
 
 @router.post("/login", response_model=Token)
-async def login(payload: UserLogin, db: AsyncSession = Depends(get_async_session)):
+async def login(payload: UserLogin, db: AsyncSession = Depends(get_async_session)) -> Token:
     """Authenticate user and return JWT tokens."""
     result = await db.execute(select(User).where(User.email == payload.email))
     user = result.scalar_one_or_none()
@@ -59,7 +59,7 @@ async def login(payload: UserLogin, db: AsyncSession = Depends(get_async_session
 
 
 @router.post("/refresh", response_model=Token)
-async def refresh_token(payload: TokenRefresh, db: AsyncSession = Depends(get_async_session)):
+async def refresh_token(payload: TokenRefresh, db: AsyncSession = Depends(get_async_session)) -> Token:
     """Refresh access token using a valid refresh token."""
     token_data = decode_token(payload.refresh_token)
     if token_data.get("type") != "refresh":
@@ -67,7 +67,12 @@ async def refresh_token(payload: TokenRefresh, db: AsyncSession = Depends(get_as
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid token type: expected refresh token",
         )
-    user_id = token_data.get("sub")
+    user_id: str | None = token_data.get("sub")
+    if user_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not validate credentials",
+        )
     result = await db.execute(select(User).where(User.id == int(user_id)))
     user = result.scalar_one_or_none()
     if user is None or not user.is_active:

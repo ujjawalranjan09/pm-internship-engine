@@ -42,7 +42,7 @@ class Settings(BaseSettings):
     # Matching
     MATCH_TOP_K: int = 50
     MATCH_MIN_SCORE: float = 0.1
-    MATCH_WEIGHTS: dict = {
+    MATCH_WEIGHTS: dict[str, float] = {
         "skill_similarity": 0.30,
         "location_preference": 0.20,
         "education_fit": 0.15,

@@ -1,5 +1,7 @@
 """Opportunity endpoints: CRUD and search."""
 
+from typing import Any
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -19,7 +21,7 @@ async def create_opportunity(
     payload: OpportunityCreate,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_async_session),
-):
+) -> Any:
     """Create a new internship opportunity (employer/admin only)."""
     if current_user.role not in ("employer", "admin"):
         raise HTTPException(
@@ -46,7 +48,7 @@ async def list_opportunities(
     is_active: bool = True,
     search: str | None = None,
     db: AsyncSession = Depends(get_async_session),
-):
+) -> Any:
     """List opportunities with filters and text search."""
     query = select(Opportunity)
     count_query = select(func.count()).select_from(Opportunity)
@@ -86,7 +88,7 @@ async def list_opportunities(
 async def get_opportunity(
     opportunity_id: int,
     db: AsyncSession = Depends(get_async_session),
-):
+) -> Any:
     """Get an opportunity by ID."""
     result = await db.execute(select(Opportunity).where(Opportunity.id == opportunity_id))
     opportunity = result.scalar_one_or_none()
@@ -101,7 +103,7 @@ async def update_opportunity(
     payload: OpportunityUpdate,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_async_session),
-):
+) -> Any:
     """Update an opportunity (owner or admin only)."""
     result = await db.execute(select(Opportunity).where(Opportunity.id == opportunity_id))
     opportunity = result.scalar_one_or_none()
@@ -125,7 +127,7 @@ async def deactivate_opportunity(
     opportunity_id: int,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_async_session),
-):
+) -> None:
     """Soft-delete an opportunity by setting is_active=False."""
     result = await db.execute(select(Opportunity).where(Opportunity.id == opportunity_id))
     opportunity = result.scalar_one_or_none()

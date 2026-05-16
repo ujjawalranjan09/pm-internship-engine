@@ -1,5 +1,7 @@
 """Candidate profile model with education, skills, and preferences."""
 
+from typing import Any
+
 from sqlalchemy import Boolean, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -17,8 +19,8 @@ class CandidateProfile(BaseModel):
     )
     full_name: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     phone: Mapped[str | None] = mapped_column(String(20), nullable=True)
-    education: Mapped[dict | None] = mapped_column(JSONB, nullable=True, default=dict)
-    skills: Mapped[list | None] = mapped_column(JSONB, nullable=True, default=list)
+    education: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True, default=dict)
+    skills: Mapped[list[str] | None] = mapped_column(JSONB, nullable=True, default=list)
     location: Mapped[str | None] = mapped_column(String(255), nullable=True)
     district: Mapped[str | None] = mapped_column(String(100), nullable=True, index=True)
     state: Mapped[str | None] = mapped_column(String(100), nullable=True, index=True)
@@ -26,7 +28,7 @@ class CandidateProfile(BaseModel):
     is_rural: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     resume_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     profile_completion_score: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
-    mobility_preferences: Mapped[dict | None] = mapped_column(JSONB, nullable=True, default=dict)
+    mobility_preferences: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True, default=dict)
 
     # Relationships
     user = relationship("User", back_populates="candidate_profile")
