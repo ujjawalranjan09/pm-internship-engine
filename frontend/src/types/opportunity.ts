@@ -39,6 +39,11 @@ export interface OpportunityListItem {
   requiredSkills: string[];
   isActive: boolean;
   matchScore?: number;
+  description?: string;
+  state?: string;
+  workMode?: string;
+  durationMonths?: number;
+  createdAt?: string;
 }
 
 export interface CreateOpportunityRequest {

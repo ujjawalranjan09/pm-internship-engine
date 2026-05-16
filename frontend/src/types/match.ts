@@ -33,4 +33,7 @@ export interface MatchRecommendation {
   matchScore: number;
   explanation: string;
   topFactors: MatchFactor[];
+  workMode?: string;
+  duration?: number;
+  skills?: string[];
 }
