@@ -37,6 +37,38 @@ except ImportError:
 
 
 @dataclass
+class CandidateProfile:
+    """Represents a candidate's profile for allocation."""
+
+    candidate_id: str
+    district: str = ""
+    category: str = "general"
+    is_rural: bool = False
+    gender: str = ""
+    state: str = ""
+
+
+@dataclass
+class OpportunitySlot:
+    """Represents an opportunity slot for allocation."""
+
+    opportunity_id: str
+    capacity: int = 1
+    location: str = ""
+    reserved_category: str | None = None
+
+
+@dataclass
+class OptimizationConstraints:
+    """Constraints for the optimization problem."""
+
+    max_per_candidate: int = 1
+    reserved_slots: dict[str, Any] = field(default_factory=dict)
+    quotas: dict[str, float] = field(default_factory=dict)
+    blocked_pairs: set[tuple[str, str]] = field(default_factory=set)
+
+
+@dataclass
 class AllocationResult:
     """Result of the constrained allocation optimization."""
 
@@ -306,3 +338,98 @@ class AllocationOptimizer:
             unallocated_candidates=unallocated,
             unfilled_opportunities=unfilled,
         )
+
+
+def build_allocation_problem(
+    score_matrix: Any,
+    candidates: list[CandidateProfile],
+    opportunities: list[OpportunitySlot],
+    constraints: OptimizationConstraints | None = None,
+) -> Any:
+    """
+    Build and solve an allocation problem.
+    
+    This is a wrapper function for backwards compatibility with tests.
+    Returns a dict-like object with allocations, waitlist, explanations, etc.
+    """
+    import pandas as pd
+    
+    optimizer = AllocationOptimizer()
+    
+    # Convert inputs to the format expected by optimize()
+    if isinstance(score_matrix, pd.DataFrame):
+        candidate_ids = score_matrix.index.tolist()
+        opportunity_ids = score_matrix.columns.tolist()
+        scores = score_matrix.values
+    else:
+        candidate_ids = [c.candidate_id for c in candidates]
+        opportunity_ids = [o.opportunity_id for o in opportunities]
+        scores = np.zeros((len(candidates), len(opportunities)))
+    
+    capacities = {o.opportunity_id: o.capacity for o in opportunities}
+    blocked_pairs = constraints.blocked_pairs if constraints else None
+    
+    result = optimizer.optimize(
+        score_matrix=scores,
+        candidate_ids=candidate_ids,
+        opportunity_ids=opportunity_ids,
+        capacities=capacities,
+        constraints={"reserved_slots": constraints.reserved_slots} if constraints else None,
+        blocked_pairs=blocked_pairs,
+    )
+    
+    # Convert to test-expected format
+    allocations = [
+        {
+            "candidate_id": a.candidate_id,
+            "opportunity_id": a.opportunity_id,
+            "score": a.score,
+            "is_allocated": a.is_allocated,
+        }
+        for a in result.allocations
+    ]
+    
+    waitlist = [
+        {"candidate_id": cid, "reason": "No capacity available"}
+        for cid in result.unallocated_candidates
+    ]
+    
+    explanations = {a["candidate_id"]: a["explanation"] for a in allocations}
+    
+    # Return a simple namespace-like object
+    class ResultWrapper:
+        def __init__(self):
+            self.allocations = allocations
+            self.waitlist = waitlist
+            self.explanations = explanations
+            self.solver_status = "GREEDY_FALLBACK" if result.solver_status == "greedy" else result.solver_status.upper()
+    
+    return ResultWrapper()
+
+
+def export_results(result: Any) -> dict[str, Any]:
+    """Export optimization results to a dictionary."""
+    if hasattr(result, "allocations"):
+        allocations = result.allocations
+    else:
+        allocations = []
+    
+    if hasattr(result, "waitlist"):
+        waitlist = result.waitlist
+    else:
+        waitlist = []
+    
+    summary = {
+        "total_allocations": len(allocations),
+        "total_waitlisted": len(waitlist),
+        "allocation_rate": len(allocations) / (len(allocations) + len(waitlist)) if (len(allocations) + len(waitlist)) > 0 else 0.0,
+        "solver_status": getattr(result, "solver_status", "unknown"),
+    }
+    
+    return {
+        "allocations": allocations,
+        "waitlist": waitlist,
+        "summary": summary,
+        "explanations": getattr(result, "explanations", {}),
+        "metrics": {},
+    }

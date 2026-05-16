@@ -51,6 +51,13 @@ class RerankerConfig:
     female_boost: float = 0.03
     gender_parity_target: float = 0.40  # Target 40% female representation
 
+    # Feature flags for FairnessReranker
+    enable_district_uplift: bool = True
+    enable_category_balancing: bool = True
+    enable_rural_preference: bool = True
+    enable_female_uplift: bool = True
+    enable_repeat_penalty: bool = True
+
 
 @dataclass
 class RerankedCandidate:
@@ -274,3 +281,138 @@ class Reranker:
             r.rank = i + 1
 
         return top + remaining
+
+
+@dataclass
+class RerankResult:
+    """Result of a fairness-aware re-ranking operation."""
+
+    original_scores: np.ndarray
+    adjusted_scores: np.ndarray
+    adjustments: dict[str, np.ndarray] = field(default_factory=dict)
+    summary: dict[str, Any] = field(default_factory=dict)
+    adjustment_log: list[dict[str, Any]] = field(default_factory=list)
+
+
+class FairnessReranker:
+    """
+    Fairness-aware re-ranker with configurable adjustments.
+    
+    This is an alternative implementation that works with numpy arrays
+    and pandas DataFrames for easier integration with test suites.
+    """
+
+    def __init__(self, config: RerankerConfig | None = None) -> None:
+        self.config = config or RerankerConfig()
+        self._adjustment_log: list[dict[str, Any]] = []
+
+    def rerank(
+        self,
+        scores: np.ndarray,
+        candidates: Any,  # pandas DataFrame
+        opportunity_id: str = "default",
+    ) -> RerankResult:
+        """
+        Re-rank candidates with fairness adjustments.
+        
+        Args:
+            scores: Original scores as numpy array.
+            candidates: pandas DataFrame with columns:
+                candidate_id, district, category, is_rural, gender, previous_allocations
+            opportunity_id: Optional opportunity ID for logging.
+            
+        Returns:
+            RerankResult with original and adjusted scores.
+        """
+        import pandas as pd
+        
+        n = len(scores)
+        adjusted = scores.copy()
+        adjustments: dict[str, np.ndarray] = {}
+        self._adjustment_log = []
+        
+        # Enable flags
+        enable_district = getattr(self.config, "enable_district_uplift", True)
+        enable_category = getattr(self.config, "enable_category_balancing", True)
+        enable_rural = getattr(self.config, "enable_rural_preference", True)
+        enable_female = getattr(self.config, "enable_female_uplift", True)
+        enable_repeat = getattr(self.config, "enable_repeat_penalty", True)
+        
+        # Category boosts
+        if enable_category and "category" in candidates.columns:
+            cat_boost = np.zeros(n)
+            for i, row in candidates.iterrows():
+                cat = (row.get("category") or "general").lower()
+                if cat in ("sc", "scheduled caste"):
+                    cat_boost[i] = self.config.sc_boost
+                elif cat in ("st", "scheduled tribe"):
+                    cat_boost[i] = self.config.st_boost
+                elif cat in ("obc", "other backward class"):
+                    cat_boost[i] = self.config.obc_boost
+            if np.any(cat_boost > 0):
+                adjustments["category"] = cat_boost
+                adjusted += cat_boost
+                self._adjustment_log.append({"type": "category", "boost": cat_boost.tolist()})
+        
+        # Rural boost
+        if enable_rural and "is_rural" in candidates.columns:
+            rural_mask = candidates["is_rural"].astype(bool).values
+            rural_boost = np.where(rural_mask, self.config.rural_boost, 0.0)
+            if np.any(rural_boost > 0):
+                adjustments["rural"] = rural_boost
+                adjusted += rural_boost
+                self._adjustment_log.append({"type": "rural", "boost": rural_boost.tolist()})
+        
+        # Female boost
+        if enable_female and "gender" in candidates.columns:
+            female_mask = candidates["gender"].apply(lambda x: str(x).lower() in ("f", "female", "woman")).values
+            female_boost = np.where(female_mask, self.config.female_boost, 0.0)
+            if np.any(female_boost > 0):
+                adjustments["gender"] = female_boost
+                adjusted += female_boost
+                self._adjustment_log.append({"type": "gender", "boost": female_boost.tolist()})
+        
+        # Repeat penalty
+        if enable_repeat and "previous_allocations" in candidates.columns:
+            prev = candidates["previous_allocations"].values.astype(float)
+            repeat_penalty = -0.05 * np.minimum(prev, 3)  # Cap at 3 previous allocations
+            if np.any(repeat_penalty < 0):
+                adjustments["repeat_penalty"] = repeat_penalty
+                adjusted += repeat_penalty
+                self._adjustment_log.append({"type": "repeat_penalty", "penalty": repeat_penalty.tolist()})
+        
+        # Clamp total adjustment
+        deltas = adjusted - scores
+        abs_deltas = np.abs(deltas)
+        needs_clamping = abs_deltas > self.config.max_total_adjustment
+        if np.any(needs_clamping):
+            scale = self.config.max_total_adjustment / np.maximum(abs_deltas, 1e-9)
+            scale = np.minimum(scale, 1.0)
+            adjusted = scores + deltas * scale
+        
+        # Clamp to [0, 1]
+        adjusted = np.clip(adjusted, 0.0, 1.0)
+        
+        # Build summary
+        summary = {
+            "total_candidates": n,
+            "total_adjustments": len(adjustments),
+            "score_correlation": float(np.corrcoef(scores, adjusted)[0, 1]) if n > 1 else 1.0,
+        }
+        
+        return RerankResult(
+            original_scores=scores,
+            adjusted_scores=adjusted,
+            adjustments=adjustments,
+            summary=summary,
+            adjustment_log=self._adjustment_log,
+        )
+
+    def get_adjustment_summary(self) -> Any:
+        """Return adjustment summary as a pandas DataFrame."""
+        import pandas as pd
+        
+        if not self._adjustment_log:
+            return pd.DataFrame()
+        
+        return pd.DataFrame(self._adjustment_log)

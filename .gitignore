@@ -1,162 +1,29 @@
-# ============================================================
-# Git Ignore - PM Internship Smart Allocation Engine
-# ============================================================
-
-# ─────────────────────────────────────────────
-# Python
-# ─────────────────────────────────────────────
+```
+# Compiled Python files
+*.pyc
 __pycache__/
-*.py[cod]
-*$py.class
-*.so
-*.egg-info/
-dist/
-build/
-eggs/
-*.egg
-.eggs/
-*.whl
-.Python
-develop-eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-pip-wheel-metadata/
-share/python-wheels/
-*.manifest
-*.spec
-pip-log.txt
-pip-delete-this-directory.txt
 
-# Virtual environments
-.venv/
+# Dependencies
 venv/
-ENV/
-env/
-.conda/
-
-# ─────────────────────────────────────────────
-# Node.js
-# ─────────────────────────────────────────────
-node_modules/
-.next/
-.nuxt/
-out/
-.cache/
-*.tsbuildinfo
-.npm
-.eslintcache
-.node_repl_history
-*.tgz
-.yarn-integrity
-.pnp.*
-.yarn/*
-!.yarn/patches
-!.yarn/plugins
-!.yarn/releases
-!.yarn/sdks
-!.yarn/versions
-
-# ─────────────────────────────────────────────
-# Testing
-# ─────────────────────────────────────────────
-.coverage
-htmlcov/
-.pytest_cache/
-.mypy_cache/
-.ruff_cache/
-.tox/
-.nox/
-coverage.xml
-*.cover
-*.py,cover
-.hypothesis/
-junit/
-junit.xml
-
-# ─────────────────────────────────────────────
-# IDEs & Editors
-# ─────────────────────────────────────────────
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-.DS_Store
-Thumbs.db
-desktop.ini
-*.sublime-project
-*.sublime-workspace
-.project
-.classpath
-.settings/
-
-# ─────────────────────────────────────────────
-# Environment
-# ─────────────────────────────────────────────
+.venv/
 .env
 .env.local
-.env.*.local
-!.env.example
-!.env.development
-!.env.production
+*.env.*
 
-# ─────────────────────────────────────────────
-# Docker
-# ─────────────────────────────────────────────
+# Logs and temporary files
 *.log
-docker-compose.override.yml
-
-# ─────────────────────────────────────────────
-# Terraform
-# ─────────────────────────────────────────────
-.terraform/
-*.tfstate
-*.tfstate.backup
-*.tfvars
-!*.tfvars.example
-crash.log
-crash.*.log
-*.tfplan
-override.tf
-override.tf.json
-*_override.tf
-*_override.tf.json
-.terraformrc
-terraform.rc
-
-# ─────────────────────────────────────────────
-# Logs
-# ─────────────────────────────────────────────
-logs/
-*.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-
-# ─────────────────────────────────────────────
-# OS
-# ─────────────────────────────────────────────
-.DS_Store
-Thumbs.db
-ehthumbs.db
-Desktop.ini
-$RECYCLE.BIN/
 *.tmp
-*.bak
-*.swp
 
-# ─────────────────────────────────────────────
-# Application specific
-# ─────────────────────────────────────────────
-alembic/versions/*.pyc
-uploads/
-tmp/
-temp/
-data/
-*.sqlite3
-*.db
+# Editors
+.vscode/
+.idea/
+
+# Coverage reports
+.coverage
+coverage/
+htmlcov/
+
+# Testing
+.pytest_cache/
+.mypy_cache/
+```

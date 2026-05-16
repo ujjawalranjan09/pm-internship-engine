@@ -346,3 +346,62 @@ class FairnessGuardrails:
             safe_scale,
         )
         return proposed_adjustments * safe_scale
+
+
+# Standalone functions for backwards compatibility with tests
+def enforce_min_quality_threshold(
+    original: np.ndarray,
+    adjusted: np.ndarray,
+    threshold: float = 0.6,
+) -> np.ndarray:
+    """Ensure adjusted scores don't fall below threshold fraction of original."""
+    result = adjusted.copy()
+    mask = original > 0
+    min_vals = original[mask] * threshold
+    result[mask] = np.maximum(result[mask], min_vals)
+    return result
+
+
+def enforce_max_adjustment(
+    original: np.ndarray,
+    adjusted: np.ndarray,
+    max_delta: float = 0.15,
+) -> np.ndarray:
+    """Clamp adjustments so |adjusted - original| <= max_delta."""
+    result = adjusted.copy()
+    delta = adjusted - original
+    too_high = delta > max_delta
+    too_low = delta < -max_delta
+    result[too_high] = original[too_high] + max_delta
+    result[too_low] = original[too_low] - max_delta
+    return result
+
+
+def detect_overcorrection(
+    before: np.ndarray,
+    after: np.ndarray,
+    group: np.ndarray,
+) -> dict[str, Any]:
+    """Detect if fairness adjustments overcorrect for a protected group."""
+    if len(before) == 0:
+        return {"is_overcorrected": False, "group_mean_delta": 0.0, "non_group_mean_delta": 0.0}
+    
+    group_mask = group.astype(bool)
+    non_group_mask = ~group_mask
+    
+    group_before = before[group_mask] if np.any(group_mask) else np.array([])
+    group_after = after[group_mask] if np.any(group_mask) else np.array([])
+    non_group_before = before[non_group_mask] if np.any(non_group_mask) else np.array([])
+    non_group_after = after[non_group_mask] if np.any(non_group_mask) else np.array([])
+    
+    group_mean_delta = float(np.mean(group_after - group_before)) if len(group_after) > 0 else 0.0
+    non_group_mean_delta = float(np.mean(non_group_after - non_group_before)) if len(non_group_after) > 0 else 0.0
+    
+    # Overcorrection: if group gets much larger boost than non-group
+    is_overcorrected = group_mean_delta > non_group_mean_delta + 0.2
+    
+    return {
+        "is_overcorrected": is_overcorrected,
+        "group_mean_delta": group_mean_delta,
+        "non_group_mean_delta": non_group_mean_delta,
+    }
