@@ -98,14 +98,15 @@ export async function getCycleResults(cycleId: string): Promise<AllocationResult
   }
 }
 
-export async function triggerAllocation(): Promise<AllocationCycle> {
+export async function triggerAllocation(payload?: { name?: string }): Promise<AllocationCycle> {
   try {
-    const response = await apiPost<ApiResponse<AllocationCycle>>(API_ROUTES.ALLOCATION.TRIGGER);
+    const response = await apiPost<ApiResponse<AllocationCycle>>(API_ROUTES.ALLOCATION.TRIGGER, payload);
     return response.data;
   } catch {
     return {
       ...MOCK_CYCLES[1],
       id: `cycle_${Date.now()}`,
+      name: payload?.name ?? `Cycle ${new Date().toISOString().slice(0, 10)}`,
       status: "running",
       startedAt: new Date().toISOString(),
     };

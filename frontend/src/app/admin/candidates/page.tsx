@@ -10,17 +10,21 @@ import { PageHeader } from "@/components/shared/page-header";
 import { SkeletonCard } from "@/components/shared/skeleton";
 import { EmptyState } from "@/components/shared/empty-state";
 import { formatDate, cn } from "@/lib/utils";
+import type { Education } from "@/types/candidate";
 import {
   Search,
-  Users,
   MapPin,
   GraduationCap,
-  Star,
   ChevronLeft,
   ChevronRight,
-  Filter,
   Download,
 } from "lucide-react";
+
+function getEducationLabel(education: Education[] | string): string {
+  if (!education) return "\u2014";
+  if (typeof education === "string") return education || "\u2014";
+  return education[0]?.degree ?? "\u2014";
+}
 
 export default function AdminCandidatesPage() {
   const [page, setPage] = useState(1);
@@ -125,18 +129,18 @@ export default function AdminCandidatesPage() {
                         <td className="px-4 py-3">
                           <span className="flex items-center gap-1 text-muted-foreground">
                             <MapPin className="h-3.5 w-3.5" />
-                            {c.state ?? "—"}
+                            {c.state ?? "\u2014"}
                           </span>
                         </td>
                         <td className="px-4 py-3">
                           <Badge variant="outline" size="sm">
-                            {c.socialCategory?.toUpperCase() ?? "—"}
+                            {c.socialCategory?.toUpperCase() ?? "\u2014"}
                           </Badge>
                         </td>
                         <td className="px-4 py-3">
                           <span className="flex items-center gap-1 text-muted-foreground">
                             <GraduationCap className="h-3.5 w-3.5" />
-                            {c.education?.[0]?.degree ?? "—"}
+                            {getEducationLabel(c.education)}
                           </span>
                         </td>
                         <td className="px-4 py-3">
@@ -179,7 +183,7 @@ export default function AdminCandidatesPage() {
               {/* Pagination */}
               <div className="flex items-center justify-between px-4 py-3 border-t">
                 <p className="text-sm text-muted-foreground">
-                  Showing {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, data?.total ?? 0)} of {data?.total ?? 0}
+                  Showing {(page - 1) * pageSize + 1}\u2013{Math.min(page * pageSize, data?.total ?? 0)} of {data?.total ?? 0}
                 </p>
                 <div className="flex items-center gap-2">
                   <Button

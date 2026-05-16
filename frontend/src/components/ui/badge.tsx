@@ -2,18 +2,27 @@ import { type HTMLAttributes } from "react";
 import { cn, getStatusColor } from "@/lib/utils";
 
 interface BadgeProps extends HTMLAttributes<HTMLSpanElement> {
-  variant?: "default" | "status" | "outline";
+  variant?: "default" | "secondary" | "status" | "outline";
   status?: string;
   size?: "sm" | "md";
 }
 
-function Badge({ className, variant = "default", status, size = "md", children, ...props }: BadgeProps) {
-  const baseStyles = "inline-flex items-center rounded-full font-medium transition-colors";
+function Badge({
+  className,
+  variant = "default",
+  status,
+  size = "md",
+  children,
+  ...props
+}: BadgeProps) {
+  const baseStyles =
+    "inline-flex items-center rounded-full font-medium transition-colors";
 
-  const variants = {
-    default: "bg-navy-100 text-navy-800",
-    status: status ? getStatusColor(status) : "bg-gray-100 text-gray-800",
-    outline: "border border-navy-300 text-navy-700",
+  const variants: Record<NonNullable<BadgeProps["variant"]>, string> = {
+    default:   "bg-navy-100 text-navy-800",
+    secondary: "bg-gray-100 text-gray-700",
+    status:    status ? getStatusColor(status) : "bg-gray-100 text-gray-800",
+    outline:   "border border-navy-300 text-navy-700",
   };
 
   const sizes = {
@@ -22,7 +31,10 @@ function Badge({ className, variant = "default", status, size = "md", children, 
   };
 
   return (
-    <span className={cn(baseStyles, variants[variant], sizes[size], className)} {...props}>
+    <span
+      className={cn(baseStyles, variants[variant], sizes[size], className)}
+      {...props}
+    >
       {children}
     </span>
   );

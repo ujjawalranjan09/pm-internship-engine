@@ -1,6 +1,12 @@
 "use client";
 
-import { createContext, useContext, useState, useCallback, type ReactNode } from "react";
+import {
+  createContext,
+  useContext,
+  useState,
+  useCallback,
+  type ReactNode,
+} from "react";
 import { cn } from "@/lib/utils";
 import { X, CheckCircle, AlertCircle, Info, AlertTriangle } from "lucide-react";
 
@@ -50,21 +56,31 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 
 const icons = {
   success: CheckCircle,
-  error: AlertCircle,
+  error:   AlertCircle,
   warning: AlertTriangle,
-  info: Info,
+  info:    Info,
 };
 
 const typeStyles = {
   success: "border-l-4 border-gov-success bg-green-50",
-  error: "border-l-4 border-gov-error bg-red-50",
+  error:   "border-l-4 border-gov-error bg-red-50",
   warning: "border-l-4 border-gov-warning bg-yellow-50",
-  info: "border-l-4 border-gov-info bg-blue-50",
+  info:    "border-l-4 border-gov-info bg-blue-50",
 };
 
-function ToastContainer({ toasts, onRemove }: { toasts: Toast[]; onRemove: (id: string) => void }) {
+function ToastContainer({
+  toasts,
+  onRemove,
+}: {
+  toasts: Toast[];
+  onRemove: (id: string) => void;
+}) {
   return (
-    <div className="fixed bottom-4 right-4 z-[100] flex flex-col gap-2 max-w-sm w-full" role="region" aria-label="Notifications">
+    <div
+      className="fixed bottom-4 right-4 z-[100] flex flex-col gap-2 max-w-sm w-full"
+      role="region"
+      aria-label="Notifications"
+    >
       {toasts.map((toast) => {
         const Icon = icons[toast.type];
         return (
@@ -80,7 +96,11 @@ function ToastContainer({ toasts, onRemove }: { toasts: Toast[]; onRemove: (id: 
               <Icon className="h-5 w-5 mt-0.5 shrink-0" aria-hidden="true" />
               <div className="flex-1 min-w-0">
                 <p className="font-medium text-sm">{toast.title}</p>
-                {toast.message && <p className="text-sm text-muted-foreground mt-0.5">{toast.message}</p>}
+                {toast.message && (
+                  <p className="text-sm text-muted-foreground mt-0.5">
+                    {toast.message}
+                  </p>
+                )}
               </div>
               <button
                 onClick={() => onRemove(toast.id)}
@@ -97,5 +117,4 @@ function ToastContainer({ toasts, onRemove }: { toasts: Toast[]; onRemove: (id: 
   );
 }
 
-export { ToastProvider, useToast };
 export type { Toast };

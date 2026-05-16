@@ -24,10 +24,12 @@ export interface CandidateProfile {
   dateOfBirth?: string;
   gender?: string;
   category?: string;
+  socialCategory?: string;
   state: string;
   district: string;
   pincode?: string;
   address?: string;
+  isRural?: boolean;
   education: Education[];
   skills: Skill[];
   sectors: string[];
@@ -45,18 +47,25 @@ export interface CandidateListItem {
   email: string;
   state: string;
   district: string;
-  education: string;
+  /** API may return a flat string label OR an Education array */
+  education: Education[] | string;
   skills: string[];
   profileCompletion: number;
   matchScore?: number;
   category?: string;
+  socialCategory?: string;
+  isRural?: boolean;
+  createdAt?: string;
 }
 
 export interface CandidateFilter {
   state?: string;
   district?: string;
   category?: string;
+  socialCategory?: string;
   skills?: string[];
   education?: string;
   minProfileCompletion?: number;
+  /** Free-text search across name, state, district, skills */
+  search?: string;
 }

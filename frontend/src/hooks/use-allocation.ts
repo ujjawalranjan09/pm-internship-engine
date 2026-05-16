@@ -32,7 +32,8 @@ export function useCycleResults(cycleId: string) {
 export function useTriggerAllocation() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: allocationService.triggerAllocation,
+    mutationFn: (payload: { name: string }) =>
+      allocationService.triggerAllocation(payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["allocation"] });
     },
