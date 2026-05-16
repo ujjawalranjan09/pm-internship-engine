@@ -15,7 +15,6 @@ import {
   Briefcase,
   MapPin,
   Users,
-  Clock,
   ChevronLeft,
   ChevronRight,
   Plus,
@@ -41,11 +40,12 @@ export default function AdminOpportunitiesPage() {
       <PageHeader
         title="Opportunity Management"
         description={`${data?.total ?? 0} internship opportunities`}
-        action={{
-          label: "Add Opportunity",
-          onClick: () => {},
-          icon: <Plus className="h-4 w-4" />,
-        }}
+        action={
+          <Button onClick={() => {}}>
+            <Plus className="h-4 w-4 mr-1.5" />
+            Add Opportunity
+          </Button>
+        }
       />
 
       {/* Filters */}
@@ -128,9 +128,11 @@ export default function AdminOpportunitiesPage() {
                       <tr key={o.id} className="border-b hover:bg-muted/30 transition-colors">
                         <td className="px-4 py-3">
                           <p className="font-medium">{o.title}</p>
-                          <p className="text-xs text-muted-foreground truncate max-w-[200px]">
-                            {o.description}
-                          </p>
+                          {o.description && (
+                            <p className="text-xs text-muted-foreground truncate max-w-[200px]">
+                              {o.description}
+                            </p>
+                          )}
                         </td>
                         <td className="px-4 py-3">
                           <Badge variant="default" size="sm">{o.sector ?? "—"}</Badge>
