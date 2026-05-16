@@ -9,26 +9,20 @@ import {
 } from "@/hooks/use-allocation";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { PageHeader } from "@/components/shared/page-header";
 import { SkeletonCard } from "@/components/shared/skeleton";
 import { EmptyState } from "@/components/shared/empty-state";
-import { formatDate, formatCurrency, cn } from "@/lib/utils";
+import { formatDate, cn } from "@/lib/utils";
 import {
   Play,
-  Pause,
-  CheckCircle,
-  XCircle,
   Clock,
   TrendingUp,
   GitMerge,
-  Users,
   BarChart3,
   ChevronLeft,
   ChevronRight,
-  AlertTriangle,
 } from "lucide-react";
 
 export default function AdminAllocationsPage() {
@@ -184,12 +178,12 @@ export default function AdminAllocationsPage() {
                                 <div
                                   className={cn(
                                     "h-full rounded-full",
-                                    r.matchScore >= 70 ? "bg-green-500" : r.matchScore >= 50 ? "bg-amber-500" : "bg-gray-400"
+                                    r.allocationScore >= 70 ? "bg-green-500" : r.allocationScore >= 50 ? "bg-amber-500" : "bg-gray-400"
                                   )}
-                                  style={{ width: `${r.matchScore}%` }}
+                                  style={{ width: `${r.allocationScore}%` }}
                                 />
                               </div>
-                              <span className="text-xs font-medium">{r.matchScore}%</span>
+                              <span className="text-xs font-medium">{r.allocationScore}%</span>
                             </div>
                           </td>
                           <td className="px-3 py-2">
@@ -236,7 +230,7 @@ export default function AdminAllocationsPage() {
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
             <BarChart3 className="h-5 w-5 text-navy-600" />
-            Fairness & Distribution Metrics
+            Fairness &amp; Distribution Metrics
           </CardTitle>
           <CardDescription>
             Representation across social categories, gender, and geography
@@ -296,18 +290,14 @@ export default function AdminAllocationsPage() {
                   <div>
                     <div className="flex items-center justify-between text-xs mb-1">
                       <span className="text-muted-foreground">Rural</span>
-                      <span className="font-medium">
-                        {fairness.ruralUrbanRatio.rural}%
-                      </span>
+                      <span className="font-medium">{fairness.ruralUrbanRatio.rural}%</span>
                     </div>
                     <Progress value={fairness.ruralUrbanRatio.rural} size="sm" />
                   </div>
                   <div>
                     <div className="flex items-center justify-between text-xs mb-1">
                       <span className="text-muted-foreground">Urban</span>
-                      <span className="font-medium">
-                        {fairness.ruralUrbanRatio.urban}%
-                      </span>
+                      <span className="font-medium">{fairness.ruralUrbanRatio.urban}%</span>
                     </div>
                     <Progress value={fairness.ruralUrbanRatio.urban} size="sm" />
                   </div>

@@ -19,7 +19,6 @@ import {
   Shuffle,
   Play,
   CheckCircle,
-  XCircle,
   AlertTriangle,
   Users,
   Briefcase,
@@ -75,7 +74,7 @@ export default function AllocationPage() {
       <PageHeader
         title="Allocation Management"
         description="Run and monitor allocation cycles"
-        actions={
+        action={
           <Button onClick={() => setShowConfirm(true)} disabled={running}>
             <Play className="h-4 w-4 mr-2" /> Run Allocation
           </Button>
@@ -154,7 +153,11 @@ export default function AllocationPage() {
                       {cycle.totalAllocations > 0 ? formatNumber(cycle.totalAllocations) : "—"}
                     </TableCell>
                     <TableCell className="hidden lg:table-cell text-sm text-muted-foreground">
-                      {cycle.completedAt ? formatDate(cycle.completedAt) : cycle.startedAt ? formatDate(cycle.startedAt) : formatDate(cycle.createdAt)}
+                      {cycle.completedAt
+                        ? formatDate(cycle.completedAt)
+                        : cycle.startedAt
+                        ? formatDate(cycle.startedAt)
+                        : formatDate(cycle.createdAt)}
                     </TableCell>
                     <TableCell className="text-right">
                       <Link href={`/admin/allocation/${cycle.id}`}>

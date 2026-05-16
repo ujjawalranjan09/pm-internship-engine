@@ -3,7 +3,7 @@
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import * as adminService from "@/services/admin-service";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -14,9 +14,7 @@ import { PageHeader } from "@/components/shared/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
 import { formatDateTime, cn } from "@/lib/utils";
 import {
-  FileText,
   Download,
-  Filter,
   Search,
   ChevronLeft,
   ChevronRight,
@@ -112,7 +110,7 @@ export default function AuditPage() {
       <PageHeader
         title="Audit Log"
         description="Track all system actions and changes"
-        actions={
+        action={
           <Button variant="outline" onClick={handleExport}>
             <Download className="h-4 w-4 mr-2" /> Export CSV
           </Button>
@@ -194,7 +192,7 @@ export default function AuditPage() {
                         {entry.entityType} / {entry.entityId}
                       </TableCell>
                       <TableCell className="hidden lg:table-cell text-xs text-muted-foreground max-w-[200px] truncate">
-                        {Object.entries(entry.details).map(([k, v]) => `${k}: ${v}`).join(", ")}
+                        {Object.entries(entry.details).map(([k, v]) => `${k}: ${String(v)}`).join(", ")}
                       </TableCell>
                     </TableRow>
                   ))}

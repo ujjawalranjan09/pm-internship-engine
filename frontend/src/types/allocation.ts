@@ -8,16 +8,26 @@ export type AllocationStatus =
   | "declined"
   | "accepted";
 
+export interface FairnessMetrics {
+  representationIndex: number;
+  categoryDistribution: Record<string, number>;
+  genderDistribution: Record<string, number>;
+  ruralUrbanRatio: { rural: number; urban: number };
+}
+
 export interface AllocationCycle {
   id: string;
   name: string;
   status: AllocationStatus;
   totalCandidates: number;
   totalOpportunities: number;
+  totalAllocations: number;
   allocatedCount: number;
   unallocatedCount: number;
   fairnessScore?: number;
+  fairnessMetrics: FairnessMetrics;
   createdAt: string;
+  startedAt?: string;
   completedAt?: string;
 }
 
@@ -33,6 +43,7 @@ export interface AllocationResult {
   sector: string;
   stipend: number;
   allocationScore: number;
+  matchScore: number;
   status: AllocationStatus;
   allocatedAt: string;
   confirmedAt?: string;
