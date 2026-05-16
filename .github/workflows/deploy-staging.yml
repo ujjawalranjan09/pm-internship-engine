@@ -1,13 +1,21 @@
 # ============================================================
 # Deploy to Staging - PM Internship Smart Allocation Engine
-# Triggered on merge to main branch
+# ============================================================
+# HOW TO ENABLE: This workflow runs manually (workflow_dispatch)
+# and optionally on push to main when the AWS_ROLE_ARN secret is set.
+# To enable automatic staging deploys on every merge to main:
+#   1. Set up AWS OIDC federation for GitHub Actions
+#   2. Add these secrets to the repository:
+#      - AWS_ROLE_ARN, STAGING_SUBNETS, STAGING_SG, STAGING_URL, STAGING_API_KEY
+#   3. Uncomment the push trigger below.
 # ============================================================
 
 name: Deploy Staging
 
 on:
-  push:
-    branches: [main]
+  workflow_dispatch:   # Manual trigger only — enable push trigger once AWS is configured
+  # push:
+  #   branches: [main]
 
 concurrency:
   group: deploy-staging
@@ -265,7 +273,6 @@ jobs:
 
       - name: API endpoint smoke test
         run: |
-          # Test candidate listing endpoint
           STATUS=$(curl -sf -o /dev/null -w "%{http_code}" \
             -H "Authorization: Bearer ${{ secrets.STAGING_API_KEY }}" \
             "$STAGING_URL/api/v1/candidates?limit=1" || echo "000")

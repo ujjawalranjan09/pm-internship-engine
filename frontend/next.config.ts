@@ -1,6 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Required for Docker standalone deployment (copies only what's needed)
+  output: "standalone",
+
   async rewrites() {
     return [
       {
