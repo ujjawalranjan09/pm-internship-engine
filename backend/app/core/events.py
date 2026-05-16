@@ -1,53 +1,30 @@
-"""In-memory event bus for prototype pub/sub messaging."""
-
-import asyncio
+from typing import Any, Coroutine
+from collections.abc import Callable
 import logging
-from collections import defaultdict
-from collections.abc import Callable, Coroutine
-from typing import Any
 
 logger = logging.getLogger(__name__)
 
+EventHandler = Callable[..., Coroutine[Any, Any, Any]]
 
-class EventBus:
-    """Simple async in-memory publish/subscribe event bus."""
-
-    def __init__(self) -> None:
-        self._subscribers: dict[str, list[Callable[..., Coroutine[Any, Any, Any]]]] = defaultdict(list)
-
-    def subscribe(self, event_type: str, handler: Callable[..., Coroutine[Any, Any, Any]]) -> None:
-        """Register an async handler for an event type."""
-        self._subscribers[event_type].append(handler)
-        logger.debug("Subscribed %s to event '%s'", handler.__name__, event_type)
-
-    def unsubscribe(self, event_type: str, handler: Callable[..., Coroutine[Any, Any, Any]]) -> None:
-        """Remove a handler from an event type."""
-        if handler in self._subscribers[event_type]:
-            self._subscribers[event_type].remove(handler)
-
-    async def publish(self, event_type: str, data: Any = None) -> None:
-        """Publish an event to all registered handlers."""
-        handlers = self._subscribers.get(event_type, [])
-        if not handlers:
-            logger.debug("No handlers for event '%s'", event_type)
-            return
-        tasks = [asyncio.create_task(h(data)) for h in handlers]
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-        for handler, result in zip(handlers, results, strict=False):
-            if isinstance(result, Exception):
-                logger.error(
-                    "Handler %s failed for event '%s': %s",
-                    handler.__name__,
-                    event_type,
-                    result,
-                )
+_startup_handlers: list[EventHandler] = []
+_shutdown_handlers: list[EventHandler] = []
 
 
-event_bus = EventBus()
+def on_startup(func: Callable[..., Coroutine[Any, Any, Any]]) -> Callable[..., Coroutine[Any, Any, Any]]:
+    _startup_handlers.append(func)
+    return func
 
-# Event type constants
-EVENT_ALLOCATION_COMPLETE = "allocation_complete"
-EVENT_CANDIDATE_REGISTERED = "candidate_registered"
-EVENT_MATCHING_COMPLETE = "matching_complete"
-EVENT_NOTIFICATION_SENT = "notification_sent"
-EVENT_PROFILE_UPDATED = "profile_updated"
+
+def on_shutdown(func: Callable[..., Coroutine[Any, Any, Any]]) -> Callable[..., Coroutine[Any, Any, Any]]:
+    _shutdown_handlers.append(func)
+    return func
+
+
+async def startup_event() -> None:
+    for handler in _startup_handlers:
+        await handler()
+
+
+async def shutdown_event() -> None:
+    for handler in _shutdown_handlers:
+        await handler()
