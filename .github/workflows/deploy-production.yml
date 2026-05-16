@@ -1,0 +1,378 @@
+# ============================================================
+# Deploy to Production - PM Internship Smart Allocation Engine
+# Triggered on version tags (v*)
+# ============================================================
+
+name: Deploy Production
+
+on:
+  push:
+    tags:
+      - "v*"
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ${{ github.repository }}
+  AWS_REGION: ap-south-1
+  ECS_CLUSTER: pm-internship-production
+  ECS_SERVICE_BACKEND: pm-backend-production
+  ECS_SERVICE_FRONTEND: pm-frontend-production
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+
+jobs:
+  # ─────────────────────────────────────────────
+  # Validate Tag
+  # ─────────────────────────────────────────────
+  validate:
+    name: "Validate Release Tag"
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: Extract version
+        id: version
+        run: |
+          VERSION="${GITHUB_REF#refs/tags/v}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "📦 Deploying version: $VERSION"
+
+      - name: Validate semver format
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$ ]]; then
+            echo "❌ Invalid version format: $VERSION"
+            echo "Expected: vX.Y.Z or vX.Y.Z-prerelease"
+            exit 1
+          fi
+          echo "✅ Valid version: $VERSION"
+
+  # ─────────────────────────────────────────────
+  # Build & Push Backend Image
+  # ─────────────────────────────────────────────
+  build-backend:
+    name: "Build & Push Backend"
+    runs-on: ubuntu-latest
+    needs: validate
+    outputs:
+      image-digest: ${{ steps.build.outputs.digest }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/backend
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=production-latest
+
+      - name: Build and push
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: infrastructure/docker/Dockerfile.backend
+          target: production
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            BUILD_DATE=${{ github.event.head_commit.timestamp }}
+            GIT_SHA=${{ github.sha }}
+            VERSION=${{ needs.validate.outputs.version }}
+
+  # ─────────────────────────────────────────────
+  # Build & Push Frontend Image
+  # ─────────────────────────────────────────────
+  build-frontend:
+    name: "Build & Push Frontend"
+    runs-on: ubuntu-latest
+    needs: validate
+    outputs:
+      image-digest: ${{ steps.build.outputs.digest }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/frontend
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=production-latest
+
+      - name: Build and push
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: infrastructure/docker/Dockerfile.frontend
+          target: production
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            BUILD_DATE=${{ github.event.head_commit.timestamp }}
+            GIT_SHA=${{ github.sha }}
+            VERSION=${{ needs.validate.outputs.version }}
+
+  # ─────────────────────────────────────────────
+  # Create GitHub Release
+  # ─────────────────────────────────────────────
+  release:
+    name: "Create GitHub Release"
+    runs-on: ubuntu-latest
+    needs: [validate, build-backend, build-frontend]
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD~1 2>/dev/null || echo "")
+          if [ -z "$PREV_TAG" ]; then
+            CHANGES=$(git log --oneline --no-merges HEAD | head -50)
+          else
+            CHANGES=$(git log --oneline --no-merges ${PREV_TAG}..HEAD)
+          fi
+          echo "changes<<EOF" >> "$GITHUB_OUTPUT"
+          echo "$CHANGES" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: "Release ${{ needs.validate.outputs.version }}"
+          body: |
+            ## 🚀 Release ${{ needs.validate.outputs.version }}
+
+            ### Docker Images
+            - **Backend:** `${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/backend:${{ needs.validate.outputs.version }}`
+            - **Frontend:** `${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/frontend:${{ needs.validate.outputs.version }}`
+
+            ### Image Digests
+            - Backend: `${{ needs.build-backend.outputs.image-digest }}`
+            - Frontend: `${{ needs.build-frontend.outputs.image-digest }}`
+
+            ### Changes
+            ${{ steps.changelog.outputs.changes }}
+          draft: false
+          prerelease: ${{ contains(needs.validate.outputs.version, '-') }}
+
+  # ─────────────────────────────────────────────
+  # Run Database Migrations
+  # ─────────────────────────────────────────────
+  migrate:
+    name: "Run Database Migrations"
+    runs-on: ubuntu-latest
+    needs: [build-backend]
+    environment: production
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Run migrations via ECS task
+        run: |
+          aws ecs run-task \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --task-definition pm-migrate-production \
+            --network-configuration "awsvpcConfiguration={subnets=[${{ secrets.PROD_SUBNETS }}],securityGroups=[${{ secrets.PROD_SG }}],assignPublicIp=DISABLED}" \
+            --launch-type FARGATE \
+            --overrides '{
+              "containerOverrides": [{
+                "name": "migrate",
+                "command": ["alembic", "upgrade", "head"]
+              }]
+            }'
+
+      - name: Wait for migration to complete
+        run: |
+          aws ecs wait tasks-stopped \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --tasks $(aws ecs list-tasks \
+              --cluster ${{ env.ECS_CLUSTER }} \
+              --family pm-migrate-production \
+              --desired-status STOPPED \
+              --query 'taskArns[0]' \
+              --output text)
+
+  # ─────────────────────────────────────────────
+  # Deploy Backend to Production
+  # ─────────────────────────────────────────────
+  deploy-backend:
+    name: "Deploy Backend to Production"
+    runs-on: ubuntu-latest
+    needs: [build-backend, migrate]
+    environment: production
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Deploy with rolling update
+        run: |
+          # Update service with new task definition
+          aws ecs update-service \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --service ${{ env.ECS_SERVICE_BACKEND }} \
+            --force-new-deployment \
+            --deployment-configuration "maximumPercent=200,minimumHealthyPercent=100" \
+            --query 'service.serviceName'
+
+      - name: Wait for deployment stable
+        run: |
+          echo "⏳ Waiting for service to stabilize..."
+          aws ecs wait services-stable \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --services ${{ env.ECS_SERVICE_BACKEND }}
+          echo "✅ Backend deployment stable"
+
+  # ─────────────────────────────────────────────
+  # Deploy Frontend to Production
+  # ─────────────────────────────────────────────
+  deploy-frontend:
+    name: "Deploy Frontend to Production"
+    runs-on: ubuntu-latest
+    needs: [build-frontend]
+    environment: production
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Deploy to S3 + CloudFront
+        run: |
+          # Sync frontend static files to S3
+          aws s3 sync frontend/.next/static s3://${{ secrets.FRONTEND_S3_BUCKET }}/_next/static \
+            --delete \
+            --cache-control "public, max-age=31536000, immutable"
+
+          aws s3 sync frontend/public s3://${{ secrets.FRONTEND_S3_BUCKET }}/ \
+            --delete \
+            --cache-control "public, max-age=3600"
+
+      - name: Invalidate CloudFront cache
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }} \
+            --paths "/*"
+
+  # ─────────────────────────────────────────────
+  # Production Health Checks
+  # ─────────────────────────────────────────────
+  health-check:
+    name: "Production Health Checks"
+    runs-on: ubuntu-latest
+    needs: [deploy-backend, deploy-frontend]
+    environment: production
+    env:
+      PRODUCTION_URL: ${{ secrets.PRODUCTION_URL }}
+    steps:
+      - name: Wait for deployment propagation
+        run: sleep 60
+
+      - name: Backend health check
+        run: |
+          for i in {1..10}; do
+            STATUS=$(curl -sf -o /dev/null -w "%{http_code}" "$PRODUCTION_URL/api/health" || echo "000")
+            if [ "$STATUS" = "200" ]; then
+              echo "✅ Backend healthy"
+              exit 0
+            fi
+            echo "⏳ Attempt $i/10: Backend returned $STATUS"
+            sleep 15
+          done
+          echo "❌ Backend health check failed after 10 attempts"
+          exit 1
+
+      - name: Frontend health check
+        run: |
+          for i in {1..10}; do
+            STATUS=$(curl -sf -o /dev/null -w "%{http_code}" "$PRODUCTION_URL" || echo "000")
+            if [ "$STATUS" = "200" ]; then
+              echo "✅ Frontend healthy"
+              exit 0
+            fi
+            echo "⏳ Attempt $i/10: Frontend returned $STATUS"
+            sleep 15
+          done
+          echo "❌ Frontend health check failed after 10 attempts"
+          exit 1
+
+      - name: Critical API endpoints check
+        run: |
+          ENDPOINTS=(
+            "/api/health"
+            "/api/v1/status"
+            "/api/v1/allocation/status"
+          )
+          for EP in "${ENDPOINTS[@]}"; do
+            STATUS=$(curl -sf -o /dev/null -w "%{http_code}" "$PRODUCTION_URL$EP" || echo "000")
+            echo "  $EP → $STATUS"
+            if [ "$STATUS" != "200" ] && [ "$STATUS" != "401" ]; then
+              echo "⚠️ Unexpected status for $EP"
+            fi
+          done
+          echo "✅ Endpoint checks complete"
+
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "🚨 Production deployment health check failed!"
+          echo "Version: ${{ needs.validate.outputs.version }}"
+          echo "Commit: ${{ github.sha }}"
+          # In production, send Slack/PagerDuty alert here
