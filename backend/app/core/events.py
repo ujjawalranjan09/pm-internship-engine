@@ -1,5 +1,6 @@
-from typing import Any, Callable, Coroutine
 import logging
+from collections.abc import Callable, Coroutine
+from typing import Any
 
 logger = logging.getLogger(__name__)
 

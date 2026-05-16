@@ -1,19 +1,21 @@
-from typing import Any
 from contextlib import asynccontextmanager
+from typing import Any
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.core.config import settings
-from app.core.database import engine, Base
+
 from app.api.v1 import (
+    admin,
+    allocation,
     auth,
     candidates,
-    opportunities,
     matching,
-    allocation,
     notifications,
-    admin,
+    opportunities,
 )
-from app.core.events import startup_handler, shutdown_handler
+from app.core.config import settings
+from app.core.database import Base, engine
+from app.core.events import shutdown_handler, startup_handler
 
 
 @asynccontextmanager

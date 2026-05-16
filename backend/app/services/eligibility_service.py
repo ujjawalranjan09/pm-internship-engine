@@ -99,14 +99,11 @@ class EligibilityService:
             return False
 
         allowed_districts = criteria.get("allowed_districts")
-        if (
+        return not (
             allowed_districts
             and candidate.district
             and candidate.district.lower() not in [d.lower() for d in allowed_districts]
-        ):
-            return False
-
-        return True
+        )
 
     def _check_category_eligibility(self, candidate: CandidateProfile, criteria: dict[str, Any]) -> bool:
         """Check if candidate meets social category eligibility."""

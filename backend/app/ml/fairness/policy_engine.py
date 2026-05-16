@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import Any, Callable
+from typing import Any
 
 import numpy as np
 
@@ -70,7 +70,7 @@ def apply_policy(
     genders = _col("gender", "unspecified")
     prev_allocs = _col("previous_allocations", 0)
 
-    CATEGORY_BOOSTS: dict[str, float] = {
+    category_boosts: dict[str, float] = {
         "sc": 0.08,
         "scheduled caste": 0.08,
         "st": 0.10,
@@ -82,7 +82,7 @@ def apply_policy(
     for i in range(n):
         delta = 0.0
         if cfg.enable_category_balancing:
-            delta += CATEGORY_BOOSTS.get(str(categories[i]).lower(), 0.0)
+            delta += category_boosts.get(str(categories[i]).lower(), 0.0)
         if cfg.enable_rural_preference and bool(is_rural[i]):
             delta += cfg.rural_preference_factor
         if cfg.enable_female_uplift and str(genders[i]).lower() in ("female", "f", "woman"):
