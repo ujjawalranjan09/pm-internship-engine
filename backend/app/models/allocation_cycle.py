@@ -1,44 +1,29 @@
-"""Allocation cycle model for batch allocation runs."""
+"""SQLAlchemy ORM model for allocation (batch) cycles."""
 
-import enum
 from datetime import datetime
+from typing import Any
 
-from sqlalchemy import DateTime, Enum, String
+from sqlalchemy import DateTime, Integer, String
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.orm import Mapped, mapped_column, relationship
-
-from app.models.base import BaseModel
-
-
-class CycleStatus(enum.StrEnum):
-    """Possible allocation cycle statuses."""
-
-    DRAFT = "draft"
-    RUNNING = "running"
-    COMPLETED = "completed"
-    FAILED = "failed"
-    CANCELLED = "cancelled"
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+from sqlalchemy.sql import func
 
 
-class AllocationCycle(BaseModel):
-    """A batch allocation run with its configuration."""
+class Base(DeclarativeBase):
+    pass
 
+
+class AllocationCycle(Base):
     __tablename__ = "allocation_cycles"
 
-    name: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
-    status: Mapped[CycleStatus] = mapped_column(
-        Enum(CycleStatus, name="cycle_status_enum"),
-        nullable=False,
-        default=CycleStatus.DRAFT,
-        index=True,
-    )
-    config: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
-    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-
-    # Relationships
-    allocations = relationship("Allocation", back_populates="cycle")
-    waitlist_entries = relationship("WaitlistEntry", back_populates="cycle")
-
-    def __repr__(self) -> str:
-        return f"<AllocationCycle(id={self.id}, name={self.name!r}, status={self.status.value})>"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    status: Mapped[str] = mapped_column(String(50), default="draft")  # draft/active/completed/cancelled
+    total_candidates: Mapped[int] = mapped_column(Integer, default=0)
+    total_opportunities: Mapped[int] = mapped_column(Integer, default=0)
+    total_matches: Mapped[int] = mapped_column(Integer, default=0)
+    cycle_metadata: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())

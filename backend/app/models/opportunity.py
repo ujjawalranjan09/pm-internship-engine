@@ -1,37 +1,53 @@
-"""Opportunity model for internship positions."""
+"""SQLAlchemy ORM model for internship opportunities."""
 
-from sqlalchemy import Boolean, Float, ForeignKey, Integer, String, Text
-from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from datetime import datetime
+from typing import Any
 
-from app.models.base import BaseModel
+from sqlalchemy import Boolean, DateTime, Integer, String, Text
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+from sqlalchemy.sql import func
 
 
-class Opportunity(BaseModel):
-    """Internship opportunity posted by an employer."""
+class Base(DeclarativeBase):
+    pass
 
+
+class Opportunity(Base):
     __tablename__ = "opportunities"
 
-    employer_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
-    )
-    title: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
-    description: Mapped[str] = mapped_column(Text, nullable=False)
-    sector: Mapped[str | None] = mapped_column(String(100), nullable=True, index=True)
-    required_skills: Mapped[list | None] = mapped_column(JSONB, nullable=True, default=list)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    title: Mapped[str] = mapped_column(String(500), nullable=False)
+    company_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    sector: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # Location
     location: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    state: Mapped[str | None] = mapped_column(String(100), nullable=True, index=True)
-    district: Mapped[str | None] = mapped_column(String(100), nullable=True, index=True)
-    work_mode: Mapped[str | None] = mapped_column(String(20), nullable=True)  # remote/hybrid/onsite
-    capacity: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
-    stipend: Mapped[float | None] = mapped_column(Float, nullable=True)
-    duration_months: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    eligibility_criteria: Mapped[dict | None] = mapped_column(JSONB, nullable=True, default=dict)
-    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False, index=True)
+    state: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    district: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    is_remote: Mapped[bool] = mapped_column(Boolean, default=False)
 
-    # Relationships
-    matches = relationship("Match", back_populates="opportunity", foreign_keys="Match.opportunity_id")
-    allocations = relationship("Allocation", back_populates="opportunity", foreign_keys="Allocation.opportunity_id")
+    # Requirements
+    required_skills: Mapped[list[Any]] = mapped_column(ARRAY(String), default=list)
+    required_qualifications: Mapped[list[Any]] = mapped_column(ARRAY(String), default=list)
+    preferred_streams: Mapped[list[Any]] = mapped_column(ARRAY(String), default=list)
+    min_cgpa: Mapped[float | None] = mapped_column(Integer, nullable=True)
 
-    def __repr__(self) -> str:
-        return f"<Opportunity(id={self.id}, title={self.title!r})>"
+    # Capacity
+    total_seats: Mapped[int] = mapped_column(Integer, default=1)
+    filled_seats: Mapped[int] = mapped_column(Integer, default=0)
+    reserved_rural: Mapped[int] = mapped_column(Integer, default=0)
+    reserved_sc_st: Mapped[int] = mapped_column(Integer, default=0)
+
+    # Timing
+    application_deadline: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    internship_start: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    duration_weeks: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+    # Metadata
+    embedding: Mapped[list[Any] | None] = mapped_column(ARRAY(Integer), nullable=True)
+    opportunity_metadata: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())

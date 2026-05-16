@@ -1,35 +1,38 @@
-"""Match model for candidate-opportunity scoring."""
+"""SQLAlchemy ORM model for candidate-opportunity matches."""
 
-from sqlalchemy import Float, ForeignKey, Integer, String, Text
+from datetime import datetime
+from typing import Any
+
+from sqlalchemy import DateTime, Float, ForeignKey, Integer, String
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+from sqlalchemy.sql import func
 
-from app.models.base import BaseModel
+
+class Base(DeclarativeBase):
+    pass
 
 
-class Match(BaseModel):
-    """Scored match between a candidate and an opportunity."""
-
+class Match(Base):
     __tablename__ = "matches"
 
-    candidate_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("candidate_profiles.id", ondelete="CASCADE"), nullable=False, index=True
-    )
-    opportunity_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("opportunities.id", ondelete="CASCADE"), nullable=False, index=True
-    )
-    score: Mapped[float] = mapped_column(Float, nullable=False, index=True)
-    score_breakdown: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
-    explanation: Mapped[str | None] = mapped_column(Text, nullable=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    candidate_id: Mapped[int] = mapped_column(Integer, ForeignKey("candidates.id"), nullable=False, index=True)
+    opportunity_id: Mapped[int] = mapped_column(Integer, ForeignKey("opportunities.id"), nullable=False, index=True)
+    allocation_cycle_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("allocation_cycles.id"), nullable=True)
+
+    # Scores
+    total_score: Mapped[float] = mapped_column(Float, nullable=False)
+    skill_score: Mapped[float] = mapped_column(Float, default=0.0)
+    location_score: Mapped[float] = mapped_column(Float, default=0.0)
+    qualification_score: Mapped[float] = mapped_column(Float, default=0.0)
+    preference_score: Mapped[float] = mapped_column(Float, default=0.0)
+    fairness_adjustment: Mapped[float] = mapped_column(Float, default=0.0)
+
+    # Status
+    status: Mapped[str] = mapped_column(String(50), default="pending")  # pending/confirmed/rejected/waitlisted
     rank: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    status: Mapped[str] = mapped_column(
-        String(50), nullable=False, default="pending", index=True
-    )  # pending, accepted, rejected, waitlisted
+    explanation: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
 
-    # Relationships
-    candidate = relationship("CandidateProfile", back_populates="matches", foreign_keys=[candidate_id])
-    opportunity = relationship("Opportunity", back_populates="matches", foreign_keys=[opportunity_id])
-    allocation = relationship("Allocation", back_populates="match", uselist=False)
-
-    def __repr__(self) -> str:
-        return f"<Match(candidate={self.candidate_id}, opportunity={self.opportunity_id}, score={self.score:.3f})>"
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())

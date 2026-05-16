@@ -1,90 +1,67 @@
-"""PM Internship Smart Allocation Engine - FastAPI Application.
+"""FastAPI application entry point."""
 
-AI-based system for matching candidates to internship opportunities
-with fairness-aware allocation using constrained optimization.
-"""
-
-import logging
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
+from typing import Any
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 
-from app.api.v1.router import v1_router
 from app.core.config import get_settings
-from app.core.database import engine
-from app.core.events import EVENT_ALLOCATION_COMPLETE, EVENT_CANDIDATE_REGISTERED, event_bus
-from app.core.exceptions import register_exception_handlers
 
 settings = get_settings()
 
-logging.basicConfig(
-    level=logging.DEBUG if settings.DEBUG else logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-)
-logger = logging.getLogger(__name__)
-
-
-async def _on_allocation_complete(data: dict) -> None:
-    """Handle allocation completion events."""
-    logger.info("Allocation completed: %s", data)
-
-
-async def _on_candidate_registered(data: dict) -> None:
-    """Handle new candidate registration events."""
-    logger.info("Candidate registered: %s", data)
-
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
-    """Application lifespan: startup and shutdown hooks."""
-    logger.info("Starting %s v%s", settings.APP_NAME, settings.APP_VERSION)
-
-    # Register event handlers
-    event_bus.subscribe(EVENT_ALLOCATION_COMPLETE, _on_allocation_complete)
-    event_bus.subscribe(EVENT_CANDIDATE_REGISTERED, _on_candidate_registered)
-
+async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+    """Manage startup and shutdown lifecycle."""
+    # Startup
     yield
-
-    # Cleanup
-    logger.info("Shutting down %s", settings.APP_NAME)
-    await engine.dispose()
+    # Shutdown
 
 
-app = FastAPI(
-    title=settings.APP_NAME,
-    version=settings.APP_VERSION,
-    description=(
-        "AI-Based Smart Allocation Engine for PM Internship Scheme. "
-        "Matches candidates to internship opportunities using multi-stage "
-        "matching with fairness-aware constrained optimization."
-    ),
-    lifespan=lifespan,
-    docs_url="/docs",
-    redoc_url="/redoc",
-)
+def create_app() -> FastAPI:
+    app = FastAPI(
+        title=settings.APP_NAME,
+        version=settings.APP_VERSION,
+        openapi_url=f"{settings.API_V1_PREFIX}/openapi.json",
+        lifespan=lifespan,
+    )
 
-# CORS
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.CORS_ORIGINS,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.ALLOWED_ORIGINS,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+    app.add_middleware(GZipMiddleware, minimum_size=1000)
 
-# Exception handlers
-register_exception_handlers(app)
+    from app.api.v1 import (
+        admin,
+        allocation,
+        auth,
+        candidates,
+        matching,
+        notifications,
+        opportunities,
+    )
 
-# API routes
-app.include_router(v1_router, prefix=settings.API_V1_PREFIX)
+    prefix = settings.API_V1_PREFIX
+    app.include_router(auth.router, prefix=prefix)
+    app.include_router(candidates.router, prefix=prefix)
+    app.include_router(opportunities.router, prefix=prefix)
+    app.include_router(matching.router, prefix=prefix)
+    app.include_router(allocation.router, prefix=prefix)
+    app.include_router(notifications.router, prefix=prefix)
+    app.include_router(admin.router, prefix=prefix)
+
+    @app.get("/health")
+    async def health_check() -> dict[str, Any]:
+        return {"status": "ok", "version": settings.APP_VERSION}
+
+    return app
 
 
-@app.get("/health", tags=["Health"])
-async def health_check():
-    """Health check endpoint for load balancers and monitoring."""
-    return {
-        "status": "healthy",
-        "app": settings.APP_NAME,
-        "version": settings.APP_VERSION,
-    }
+app = create_app()
