@@ -20,6 +20,47 @@ export function formatDate(dateStr?: string | null): string {
   }
 }
 
+/** Format ISO date string to readable date + time string */
+export function formatDateTime(dateStr?: string | null): string {
+  if (!dateStr) return "\u2014";
+  try {
+    return new Date(dateStr).toLocaleString("en-IN", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  } catch {
+    return "\u2014";
+  }
+}
+
+/** Format ISO date string as relative time (e.g. "2 hours ago") */
+export function formatRelativeTime(dateStr?: string | null): string {
+  if (!dateStr) return "\u2014";
+  try {
+    const diff = Date.now() - new Date(dateStr).getTime();
+    const seconds = Math.floor(diff / 1000);
+    if (seconds < 60) return `${seconds}s ago`;
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return `${minutes}m ago`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours}h ago`;
+    const days = Math.floor(hours / 24);
+    if (days < 30) return `${days}d ago`;
+    return formatDate(dateStr);
+  } catch {
+    return "\u2014";
+  }
+}
+
+/** Format a number with locale-aware thousands separators */
+export function formatNumber(value?: number | null): string {
+  if (value == null) return "\u2014";
+  return new Intl.NumberFormat("en-IN").format(value);
+}
+
 /** Format number as INR currency */
 export function formatCurrency(amount?: number | null): string {
   if (amount == null) return "\u2014";
@@ -49,6 +90,17 @@ export function getStatusColor(status?: string): string {
     declined:   "bg-red-100 text-red-800",
   };
   return map[s] ?? "bg-gray-100 text-gray-800";
+}
+
+/** Get initials from a full name (e.g. "John Doe" -> "JD") */
+export function getInitials(name?: string | null): string {
+  if (!name) return "?";
+  return name
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0].toUpperCase())
+    .join("");
 }
 
 /** Truncate a string to maxLen characters */
