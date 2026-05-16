@@ -4,6 +4,12 @@ export interface ApiResponse<T> {
   success: boolean;
 }
 
+export interface ApiError {
+  message: string;
+  code?: string;
+  status?: number;
+}
+
 export interface PaginatedResponse<T> {
   items: T[];
   total: number;
@@ -11,6 +17,8 @@ export interface PaginatedResponse<T> {
   pageSize: number;
   totalPages: number;
 }
+
+export type UserRole = "applicant" | "employer" | "admin";
 
 export interface ActionConfig {
   label: string;

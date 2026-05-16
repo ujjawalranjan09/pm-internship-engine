@@ -1,6 +1,7 @@
 import { cn } from "@/lib/utils";
 import { Inbox, Search, FileX, Users, GitMerge } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import Link from "next/link";
 
 type EmptyStateIconKey = "inbox" | "search" | "file" | "users" | "merge";
 
@@ -10,7 +11,8 @@ interface EmptyStateProps {
   description?: string;
   action?: {
     label: string;
-    onClick: () => void;
+    onClick?: () => void;
+    href?: string;
   };
   className?: string;
 }
@@ -53,9 +55,17 @@ function EmptyState({
         </p>
       )}
       {action && (
-        <Button onClick={action.onClick} className="mt-4" variant="primary" size="sm">
-          {action.label}
-        </Button>
+        action.href ? (
+          <Link href={action.href}>
+            <Button className="mt-4" variant="primary" size="sm">
+              {action.label}
+            </Button>
+          </Link>
+        ) : (
+          <Button onClick={action.onClick} className="mt-4" variant="primary" size="sm">
+            {action.label}
+          </Button>
+        )
       )}
     </div>
   );

@@ -19,15 +19,21 @@ export const registerSchema = z
   });
 
 export const profileSchema = z.object({
-  name:           z.string().min(2).optional(),
-  phone:          z.string().optional(),
-  state:          z.string().optional(),
-  district:       z.string().optional(),
-  sector:         z.string().optional(),
-  educationLevel: z.string().optional(),
-  category:       z.string().optional(),
-  skills:         z.array(z.string()).optional(),
-  bio:            z.string().max(500).optional(),
+  name:                z.string().min(2).optional(),
+  phone:               z.string().optional(),
+  state:               z.string().optional(),
+  district:            z.string().optional(),
+  sector:              z.string().optional(),
+  sectors:             z.array(z.string()).optional(),
+  preferredLocations:  z.array(z.string()).optional(),
+  gender:              z.string().optional(),
+  category:            z.string().optional(),
+  educationLevel:      z.string().optional(),
+  pincode:             z.string().optional(),
+  address:             z.string().optional(),
+  dateOfBirth:         z.string().optional(),
+  skills:              z.array(z.string()).optional(),
+  bio:                 z.string().max(500).optional(),
 });
 
 export const internshipSchema = z.object({
@@ -56,3 +62,10 @@ export type RegisterInput     = z.infer<typeof registerSchema>;
 export type ProfileInput      = z.infer<typeof profileSchema>;
 export type InternshipInput   = z.infer<typeof internshipSchema>;
 export type FeedbackInput     = z.infer<typeof feedbackSchema>;
+
+// Aliases for form data types
+export type LoginFormData = LoginInput;
+export type RegisterFormData = RegisterInput;
+export type ProfileFormData = ProfileInput;
+export type FeedbackFormData = FeedbackInput;
+export type OpportunityFormData = InternshipInput;

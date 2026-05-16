@@ -1,16 +1,21 @@
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
+import { format } from "date-fns";
 
 /** Merge Tailwind classes safely */
 export function cn(...inputs: ClassValue[]): string {
   return twMerge(clsx(inputs));
 }
 
-/** Format ISO date string to readable locale string */
-export function formatDate(dateStr?: string | null): string {
+/** Format ISO date string to readable locale string, optionally with a custom format */
+export function formatDate(dateStr?: string | null, customFormat?: string): string {
   if (!dateStr) return "\u2014";
   try {
-    return new Date(dateStr).toLocaleDateString("en-IN", {
+    const date = new Date(dateStr);
+    if (customFormat) {
+      return format(date, customFormat);
+    }
+    return date.toLocaleDateString("en-IN", {
       day: "2-digit",
       month: "short",
       year: "numeric",

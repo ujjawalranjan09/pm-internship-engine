@@ -1,0 +1,46 @@
+src/app/admin/allocation/page.tsx(57,23): error TS2554: Expected 1-2 arguments, but got 0.
+src/app/admin/fairness/page.tsx(44,47): error TS2339: Property 'stateDistribution' does not exist on type 'FairnessMetrics'.
+src/app/admin/fairness/page.tsx(44,89): error TS18046: 'b' is of type 'unknown'.
+src/app/admin/fairness/page.tsx(44,93): error TS18046: 'a' is of type 'unknown'.
+src/app/admin/fairness/page.tsx(45,50): error TS2339: Property 'districtDistribution' does not exist on type 'FairnessMetrics'.
+src/app/admin/fairness/page.tsx(45,95): error TS18046: 'b' is of type 'unknown'.
+src/app/admin/fairness/page.tsx(45,99): error TS18046: 'a' is of type 'unknown'.
+src/app/admin/fairness/page.tsx(193,88): error TS18046: 'pct' is of type 'unknown'.
+src/app/admin/fairness/page.tsx(193,94): error TS2571: Object is of type 'unknown'.
+src/app/admin/fairness/page.tsx(195,71): error TS2322: Type 'unknown' is not assignable to type 'ReactNode'.
+src/app/applicant/allocations/page.tsx(57,44): error TS2353: Object literal may only specify known properties, and 'href' does not exist in type '{ label: string; onClick: () => void; }'.
+src/app/applicant/applications/page.tsx(224,103): error TS2554: Expected 0-1 arguments, but got 2.
+src/app/applicant/applications/page.tsx(314,47): error TS2554: Expected 0-1 arguments, but got 2.
+src/app/applicant/matches/page.tsx(58,48): error TS2353: Object literal may only specify known properties, and 'href' does not exist in type '{ label: string; onClick: () => void; }'.
+src/app/applicant/offers/page.tsx(208,57): error TS2554: Expected 0-1 arguments, but got 2.
+src/app/applicant/profile/page.tsx(7,30): error TS2305: Module '"@/lib/validators"' has no exported member 'ProfileFormData'.
+src/app/applicant/profile/page.tsx(85,43): error TS2349: This expression is not callable.
+  Type 'string[]' has no call signatures.
+src/app/applicant/profile/page.tsx(328,39): error TS2349: This expression is not callable.
+  Type 'string[]' has no call signatures.
+src/app/auth/login/page.tsx(7,28): error TS2305: Module '"@/lib/validators"' has no exported member 'LoginFormData'.
+src/app/auth/register/page.tsx(7,31): error TS2305: Module '"@/lib/validators"' has no exported member 'RegisterFormData'.
+src/app/employer/feedback/page.tsx(6,31): error TS2305: Module '"@/lib/validators"' has no exported member 'FeedbackFormData'.
+src/app/employer/feedback/page.tsx(230,85): error TS2554: Expected 0-1 arguments, but got 2.
+src/app/employer/internships/new/page.tsx(8,10): error TS2305: Module '"@/lib/validators"' has no exported member 'opportunitySchema'.
+src/app/employer/internships/new/page.tsx(8,34): error TS2305: Module '"@/lib/validators"' has no exported member 'OpportunityFormData'.
+src/app/employer/internships/new/page.tsx(71,43): error TS2349: This expression is not callable.
+  Type 'string[]' has no call signatures.
+src/components/shared/navbar.tsx(44,22): error TS2339: Property 'map' does not exist on type '{ readonly label: "Home"; readonly href: "/"; } | { readonly label: "Internships"; readonly href: "/applicant/internships"; } | { readonly label: "My Matches"; readonly href: "/applicant/matches"; } | { ...; } | { ...; }'.
+  Property 'map' does not exist on type '{ readonly label: "Home"; readonly href: "/"; }'.
+src/components/shared/navbar.tsx(114,20): error TS2339: Property 'map' does not exist on type '{ readonly label: "Home"; readonly href: "/"; } | { readonly label: "Internships"; readonly href: "/applicant/internships"; } | { readonly label: "My Matches"; readonly href: "/applicant/matches"; } | { ...; } | { ...; }'.
+  Property 'map' does not exist on type '{ readonly label: "Home"; readonly href: "/"; }'.
+src/services/admin-service.ts(4,15): error TS2305: Module '"@/types/allocation"' has no exported member 'PolicyConfig'.
+src/services/admin-service.ts(4,29): error TS2305: Module '"@/types/allocation"' has no exported member 'AuditEntry'.
+src/services/admin-service.ts(4,41): error TS2305: Module '"@/types/allocation"' has no exported member 'OverrideRequest'.
+src/services/admin-service.ts(127,7): error TS2353: Object literal may only specify known properties, and 'stateDistribution' does not exist in type 'FairnessMetrics'.
+src/services/allocation-service.ts(17,7): error TS2353: Object literal may only specify known properties, and 'stateDistribution' does not exist in type 'FairnessMetrics'.
+src/services/allocation-service.ts(37,7): error TS2353: Object literal may only specify known properties, and 'stateDistribution' does not exist in type 'FairnessMetrics'.
+src/services/allocation-service.ts(56,7): error TS2353: Object literal may only specify known properties, and 'stateDistribution' does not exist in type 'FairnessMetrics'.
+src/services/allocation-service.ts(67,3): error TS2739: Type '{ id: string; cycleId: string; candidateId: string; candidateName: string; opportunityId: string; opportunityTitle: string; employerName: string; matchScore: number; allocatedAt: string; status: "confirmed"; }' is missing the following properties from type 'AllocationResult': location, sector, stipend, allocationScore
+src/services/allocation-service.ts(68,3): error TS2739: Type '{ id: string; cycleId: string; candidateId: string; candidateName: string; opportunityId: string; opportunityTitle: string; employerName: string; matchScore: number; allocatedAt: string; status: "confirmed"; }' is missing the following properties from type 'AllocationResult': location, sector, stipend, allocationScore
+src/services/allocation-service.ts(69,3): error TS2739: Type '{ id: string; cycleId: string; candidateId: string; candidateName: string; opportunityId: string; opportunityTitle: string; employerName: string; matchScore: number; allocatedAt: string; status: "allocated"; }' is missing the following properties from type 'AllocationResult': location, sector, stipend, allocationScore
+src/services/allocation-service.ts(70,3): error TS2739: Type '{ id: string; cycleId: string; candidateId: string; candidateName: string; opportunityId: string; opportunityTitle: string; employerName: string; matchScore: number; allocatedAt: string; status: "confirmed"; }' is missing the following properties from type 'AllocationResult': location, sector, stipend, allocationScore
+src/services/allocation-service.ts(71,3): error TS2739: Type '{ id: string; cycleId: string; candidateId: string; candidateName: string; opportunityId: string; opportunityTitle: string; employerName: string; matchScore: number; allocatedAt: string; status: "declined"; }' is missing the following properties from type 'AllocationResult': location, sector, stipend, allocationScore
+src/services/api-client.ts(2,15): error TS2305: Module '"@/types/common"' has no exported member 'ApiError'.
+src/types/user.ts(1,15): error TS2305: Module '"./common"' has no exported member 'UserRole'.
