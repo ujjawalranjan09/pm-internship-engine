@@ -2,7 +2,7 @@ import { type HTMLAttributes } from "react";
 import { cn, getStatusColor } from "@/lib/utils";
 
 interface BadgeProps extends HTMLAttributes<HTMLSpanElement> {
-  variant?: "default" | "secondary" | "status" | "outline";
+  variant?: "default" | "secondary" | "status" | "outline" | "destructive";
   status?: string;
   size?: "sm" | "md";
 }
@@ -19,10 +19,11 @@ function Badge({
     "inline-flex items-center rounded-full font-medium transition-colors";
 
   const variants: Record<NonNullable<BadgeProps["variant"]>, string> = {
-    default:   "bg-navy-100 text-navy-800",
-    secondary: "bg-gray-100 text-gray-700",
-    status:    status ? getStatusColor(status) : "bg-gray-100 text-gray-800",
-    outline:   "border border-navy-300 text-navy-700",
+    default:     "bg-navy-100 text-navy-800",
+    secondary:   "bg-gray-100 text-gray-700",
+    status:      status ? getStatusColor(status) : "bg-gray-100 text-gray-800",
+    outline:     "border border-navy-300 text-navy-700",
+    destructive: "bg-red-100 text-red-700",
   };
 
   const sizes = {
