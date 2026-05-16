@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import DateTime, Float, ForeignKey, Integer, String
+from sqlalchemy import DateTime, Float, ForeignKey, Integer, JSON, String
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from sqlalchemy.sql import func
@@ -32,7 +32,10 @@ class Match(Base):
     # Status
     status: Mapped[str] = mapped_column(String(50), default="pending")  # pending/confirmed/rejected/waitlisted
     rank: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    explanation: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    explanation: Mapped[dict[str, Any] | None] = mapped_column(
+        JSONB().with_variant(JSON(), "sqlite"),
+        nullable=True,
+    )
 
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())

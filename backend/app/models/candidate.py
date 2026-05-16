@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, JSON, String, Text
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
@@ -49,7 +49,10 @@ class Candidate(Base):
     # Profile
     resume_text: Mapped[str | None] = mapped_column(Text, nullable=True)
     embedding: Mapped[list[Any] | None] = mapped_column(ARRAY(Float), nullable=True)
-    profile_metadata: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    profile_metadata: Mapped[dict[str, Any] | None] = mapped_column(
+        JSONB().with_variant(JSON(), "sqlite"),
+        nullable=True,
+    )
     profile_completeness: Mapped[float] = mapped_column(Float, default=0.0)
 
     # Status
@@ -58,3 +61,7 @@ class Candidate(Base):
     participation_count: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
+
+
+# Backward compatibility alias
+CandidateProfile = Candidate
