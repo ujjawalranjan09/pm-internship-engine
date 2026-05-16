@@ -32,7 +32,4 @@ class Match(BaseModel):
     allocation = relationship("Allocation", back_populates="match", uselist=False)
 
     def __repr__(self) -> str:
-        return (
-            f"<Match(candidate={self.candidate_id}, opportunity={self.opportunity_id}, "
-            f"score={self.score:.3f})>"
-        )
+        return f"<Match(candidate={self.candidate_id}, opportunity={self.opportunity_id}, score={self.score:.3f})>"

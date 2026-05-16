@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_async_session, get_current_user
 from app.core.events import EVENT_PROFILE_UPDATED, event_bus
-from app.core.exceptions import NotFoundException, ValidationException
+from app.core.exceptions import NotFoundException
 from app.models.candidate import CandidateProfile
 from app.models.user import User
 from app.schemas.candidate import CandidateCreate, CandidateResponse, CandidateUpdate
@@ -40,9 +40,7 @@ async def create_candidate(
     db: AsyncSession = Depends(get_async_session),
 ):
     """Create a candidate profile for the authenticated user."""
-    result = await db.execute(
-        select(CandidateProfile).where(CandidateProfile.user_id == current_user.id)
-    )
+    result = await db.execute(select(CandidateProfile).where(CandidateProfile.user_id == current_user.id))
     if result.scalar_one_or_none() is not None:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -66,9 +64,7 @@ async def get_my_profile(
     db: AsyncSession = Depends(get_async_session),
 ):
     """Get the authenticated user's candidate profile."""
-    result = await db.execute(
-        select(CandidateProfile).where(CandidateProfile.user_id == current_user.id)
-    )
+    result = await db.execute(select(CandidateProfile).where(CandidateProfile.user_id == current_user.id))
     profile = result.scalar_one_or_none()
     if profile is None:
         raise NotFoundException("Candidate profile not found")
@@ -82,9 +78,7 @@ async def update_my_profile(
     db: AsyncSession = Depends(get_async_session),
 ):
     """Update the authenticated user's candidate profile."""
-    result = await db.execute(
-        select(CandidateProfile).where(CandidateProfile.user_id == current_user.id)
-    )
+    result = await db.execute(select(CandidateProfile).where(CandidateProfile.user_id == current_user.id))
     profile = result.scalar_one_or_none()
     if profile is None:
         raise NotFoundException("Candidate profile not found")
@@ -138,9 +132,7 @@ async def get_candidate(
     db: AsyncSession = Depends(get_async_session),
 ):
     """Get a candidate profile by ID."""
-    result = await db.execute(
-        select(CandidateProfile).where(CandidateProfile.id == candidate_id)
-    )
+    result = await db.execute(select(CandidateProfile).where(CandidateProfile.id == candidate_id))
     profile = result.scalar_one_or_none()
     if profile is None:
         raise NotFoundException(f"Candidate {candidate_id} not found")
@@ -153,9 +145,7 @@ async def get_profile_completion(
     db: AsyncSession = Depends(get_async_session),
 ):
     """Get profile completion details with suggestions."""
-    result = await db.execute(
-        select(CandidateProfile).where(CandidateProfile.user_id == current_user.id)
-    )
+    result = await db.execute(select(CandidateProfile).where(CandidateProfile.user_id == current_user.id))
     profile = result.scalar_one_or_none()
     if profile is None:
         raise NotFoundException("Candidate profile not found")

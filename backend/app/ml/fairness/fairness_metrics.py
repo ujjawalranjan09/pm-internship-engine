@@ -18,7 +18,7 @@ from __future__ import annotations
 import logging
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import numpy as np
 
@@ -28,6 +28,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class GroupMetrics:
     """Metrics for a single demographic group."""
+
     group_name: str
     total_candidates: int = 0
     allocated_candidates: int = 0
@@ -39,22 +40,23 @@ class GroupMetrics:
 @dataclass
 class FairnessReport:
     """Complete fairness analysis report."""
+
     # Overall metrics
     gini_coefficient: float = 0.0
     disparate_impact_ratio: float = 0.0
     demographic_parity_difference: float = 0.0
 
     # Per-group breakdowns
-    by_social_category: Dict[str, GroupMetrics] = field(default_factory=dict)
-    by_district: Dict[str, GroupMetrics] = field(default_factory=dict)
-    by_state: Dict[str, GroupMetrics] = field(default_factory=dict)
-    by_rural_urban: Dict[str, GroupMetrics] = field(default_factory=dict)
-    by_gender: Dict[str, GroupMetrics] = field(default_factory=dict)
+    by_social_category: dict[str, GroupMetrics] = field(default_factory=dict)
+    by_district: dict[str, GroupMetrics] = field(default_factory=dict)
+    by_state: dict[str, GroupMetrics] = field(default_factory=dict)
+    by_rural_urban: dict[str, GroupMetrics] = field(default_factory=dict)
+    by_gender: dict[str, GroupMetrics] = field(default_factory=dict)
 
     # Flags
-    violations: List[str] = field(default_factory=list)
+    violations: list[str] = field(default_factory=list)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Serialize to dict for API responses."""
         return {
             "gini_coefficient": round(self.gini_coefficient, 4),
@@ -97,9 +99,9 @@ class FairnessMetrics:
 
     def compute(
         self,
-        candidates: List[Dict[str, Any]],
-        allocations: List[Dict[str, Any]],
-        opportunities: Optional[List[Dict[str, Any]]] = None,
+        candidates: list[dict[str, Any]],
+        allocations: list[dict[str, Any]],
+        opportunities: list[dict[str, Any]] | None = None,
     ) -> FairnessReport:
         """
         Compute fairness metrics for a set of allocations.
@@ -114,13 +116,9 @@ class FairnessMetrics:
         """
         # Build lookup
         cand_map = {str(c.get("id", i)): c for i, c in enumerate(candidates)}
-        allocated_ids = {
-            str(a["candidate_id"]) for a in allocations if a.get("is_allocated", False)
-        }
+        allocated_ids = {str(a["candidate_id"]) for a in allocations if a.get("is_allocated", False)}
         alloc_scores = {
-            str(a["candidate_id"]): float(a.get("score", 0))
-            for a in allocations
-            if a.get("is_allocated", False)
+            str(a["candidate_id"]): float(a.get("score", 0)) for a in allocations if a.get("is_allocated", False)
         }
 
         total = len(candidates)
@@ -135,49 +133,54 @@ class FairnessMetrics:
 
         # ── By social category ────────────────────────────────────
         report.by_social_category = self._compute_group_metrics(
-            candidates, allocated_ids, alloc_scores,
+            candidates,
+            allocated_ids,
+            alloc_scores,
             key_fn=lambda c: (c.get("social_category") or "general").lower(),
             overall_rate=overall_rate,
         )
 
         # ── By district ───────────────────────────────────────────
         report.by_district = self._compute_group_metrics(
-            candidates, allocated_ids, alloc_scores,
+            candidates,
+            allocated_ids,
+            alloc_scores,
             key_fn=lambda c: c.get("district") or "unknown",
             overall_rate=overall_rate,
         )
 
         # ── By state ──────────────────────────────────────────────
         report.by_state = self._compute_group_metrics(
-            candidates, allocated_ids, alloc_scores,
+            candidates,
+            allocated_ids,
+            alloc_scores,
             key_fn=lambda c: c.get("state") or "unknown",
             overall_rate=overall_rate,
         )
 
         # ── By rural/urban ────────────────────────────────────────
         report.by_rural_urban = self._compute_group_metrics(
-            candidates, allocated_ids, alloc_scores,
+            candidates,
+            allocated_ids,
+            alloc_scores,
             key_fn=lambda c: "rural" if c.get("is_rural", False) else "urban",
             overall_rate=overall_rate,
         )
 
         # ── By gender ─────────────────────────────────────────────
         report.by_gender = self._compute_group_metrics(
-            candidates, allocated_ids, alloc_scores,
+            candidates,
+            allocated_ids,
+            alloc_scores,
             key_fn=lambda c: (c.get("gender") or "unspecified").lower(),
             overall_rate=overall_rate,
         )
 
         # ── Overall metrics ───────────────────────────────────────
-        report.gini_coefficient = self._gini_coefficient(
-            [alloc_scores.get(cid, 0.0) for cid in cand_map]
-        )
+        report.gini_coefficient = self._gini_coefficient([alloc_scores.get(cid, 0.0) for cid in cand_map])
 
         # Disparate impact: min group rate / max group rate
-        category_rates = [
-            gm.allocation_rate for gm in report.by_social_category.values()
-            if gm.total_candidates > 0
-        ]
+        category_rates = [gm.allocation_rate for gm in report.by_social_category.values() if gm.total_candidates > 0]
         if category_rates and max(category_rates) > 0:
             report.disparate_impact_ratio = min(category_rates) / max(category_rates)
 
@@ -192,24 +195,21 @@ class FairnessMetrics:
 
     def _compute_group_metrics(
         self,
-        candidates: List[Dict[str, Any]],
+        candidates: list[dict[str, Any]],
         allocated_ids: set,
-        alloc_scores: Dict[str, float],
+        alloc_scores: dict[str, float],
         key_fn,
         overall_rate: float,
-    ) -> Dict[str, GroupMetrics]:
+    ) -> dict[str, GroupMetrics]:
         """Compute metrics for groups defined by key_fn."""
-        groups: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
+        groups: dict[str, list[dict[str, Any]]] = defaultdict(list)
         for c in candidates:
             groups[key_fn(c)].append(c)
 
         result = {}
         for group_name, group_candidates in groups.items():
             total = len(group_candidates)
-            allocated = sum(
-                1 for c in group_candidates
-                if str(c.get("id", "")) in allocated_ids
-            )
+            allocated = sum(1 for c in group_candidates if str(c.get("id", "")) in allocated_ids)
             rate = allocated / total if total > 0 else 0.0
 
             scores = [
@@ -232,7 +232,7 @@ class FairnessMetrics:
 
         return result
 
-    def _gini_coefficient(self, values: List[float]) -> float:
+    def _gini_coefficient(self, values: list[float]) -> float:
         """
         Compute the Gini coefficient for a list of values.
 
@@ -252,7 +252,7 @@ class FairnessMetrics:
         gini = (2.0 * sum((i + 1) * v for i, v in enumerate(sorted_vals))) / (n * total) - (n + 1) / n
         return max(0.0, min(1.0, gini))
 
-    def _detect_violations(self, report: FairnessReport) -> List[str]:
+    def _detect_violations(self, report: FairnessReport) -> list[str]:
         """Detect fairness violations based on thresholds."""
         violations = []
 
@@ -293,17 +293,15 @@ class FairnessMetrics:
 
         # Check Gini
         if report.gini_coefficient > 0.40:
-            violations.append(
-                f"High inequality: Gini coefficient is {report.gini_coefficient:.3f} (threshold: 0.40)"
-            )
+            violations.append(f"High inequality: Gini coefficient is {report.gini_coefficient:.3f} (threshold: 0.40)")
 
         return violations
 
     def compute_opportunity_fairness(
         self,
-        opportunity: Dict[str, Any],
-        allocated_candidates: List[Dict[str, Any]],
-    ) -> Dict[str, Any]:
+        opportunity: dict[str, Any],
+        allocated_candidates: list[dict[str, Any]],
+    ) -> dict[str, Any]:
         """
         Compute fairness metrics for a single opportunity's allocations.
 
@@ -312,10 +310,7 @@ class FairnessMetrics:
         if not allocated_candidates:
             return {"diversity_score": 0.0, "categories": {}}
 
-        categories = Counter(
-            (c.get("social_category") or "general").lower()
-            for c in allocated_candidates
-        )
+        categories = Counter((c.get("social_category") or "general").lower() for c in allocated_candidates)
         total = len(allocated_candidates)
 
         # Shannon diversity index
@@ -332,7 +327,6 @@ class FairnessMetrics:
             "diversity_score": round(float(diversity_score), 4),
             "total_allocated": total,
             "categories": {
-                cat: {"count": count, "percentage": round(count / total, 4)}
-                for cat, count in categories.items()
+                cat: {"count": count, "percentage": round(count / total, 4)} for cat, count in categories.items()
             },
         }

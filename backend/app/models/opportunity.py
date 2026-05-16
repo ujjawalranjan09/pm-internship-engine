@@ -31,9 +31,7 @@ class Opportunity(BaseModel):
 
     # Relationships
     matches = relationship("Match", back_populates="opportunity", foreign_keys="Match.opportunity_id")
-    allocations = relationship(
-        "Allocation", back_populates="opportunity", foreign_keys="Allocation.opportunity_id"
-    )
+    allocations = relationship("Allocation", back_populates="opportunity", foreign_keys="Allocation.opportunity_id")
 
     def __repr__(self) -> str:
         return f"<Opportunity(id={self.id}, title={self.title!r})>"

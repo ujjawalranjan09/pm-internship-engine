@@ -5,28 +5,38 @@ Revises: None
 Create Date: 2026-05-16
 """
 
-from typing import Sequence, Union
+from collections.abc import Sequence
 
-from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
+from alembic import op
+
 # revision identifiers, used by Alembic.
 revision: str = "001_initial"
-down_revision: Union[str, None] = None
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | None = None
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
     # ── ENUM types used by Allocation and AllocationCycle ──────────
     allocation_status_enum = postgresql.ENUM(
-        "pending", "confirmed", "accepted", "declined", "withdrawn", "completed",
+        "pending",
+        "confirmed",
+        "accepted",
+        "declined",
+        "withdrawn",
+        "completed",
         name="allocation_status_enum",
         create_type=True,
     )
     cycle_status_enum = postgresql.ENUM(
-        "draft", "running", "completed", "failed", "cancelled",
+        "draft",
+        "running",
+        "completed",
+        "failed",
+        "cancelled",
         name="cycle_status_enum",
         create_type=True,
     )
@@ -68,7 +78,9 @@ def upgrade() -> None:
     op.create_table(
         "opportunities",
         sa.Column("id", sa.Integer(), primary_key=True, autoincrement=True),
-        sa.Column("employer_id", sa.Integer(), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True),
+        sa.Column(
+            "employer_id", sa.Integer(), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+        ),
         sa.Column("title", sa.String(255), nullable=False, index=True),
         sa.Column("description", sa.Text(), nullable=False),
         sa.Column("sector", sa.String(100), nullable=True, index=True),
@@ -90,8 +102,20 @@ def upgrade() -> None:
     op.create_table(
         "matches",
         sa.Column("id", sa.Integer(), primary_key=True, autoincrement=True),
-        sa.Column("candidate_id", sa.Integer(), sa.ForeignKey("candidate_profiles.id", ondelete="CASCADE"), nullable=False, index=True),
-        sa.Column("opportunity_id", sa.Integer(), sa.ForeignKey("opportunities.id", ondelete="CASCADE"), nullable=False, index=True),
+        sa.Column(
+            "candidate_id",
+            sa.Integer(),
+            sa.ForeignKey("candidate_profiles.id", ondelete="CASCADE"),
+            nullable=False,
+            index=True,
+        ),
+        sa.Column(
+            "opportunity_id",
+            sa.Integer(),
+            sa.ForeignKey("opportunities.id", ondelete="CASCADE"),
+            nullable=False,
+            index=True,
+        ),
         sa.Column("score", sa.Float(), nullable=False, index=True),
         sa.Column("score_breakdown", postgresql.JSONB(), nullable=True),
         sa.Column("explanation", sa.Text(), nullable=True),
@@ -118,10 +142,28 @@ def upgrade() -> None:
     op.create_table(
         "allocations",
         sa.Column("id", sa.Integer(), primary_key=True, autoincrement=True),
-        sa.Column("candidate_id", sa.Integer(), sa.ForeignKey("candidate_profiles.id", ondelete="CASCADE"), nullable=False, index=True),
-        sa.Column("opportunity_id", sa.Integer(), sa.ForeignKey("opportunities.id", ondelete="CASCADE"), nullable=False, index=True),
+        sa.Column(
+            "candidate_id",
+            sa.Integer(),
+            sa.ForeignKey("candidate_profiles.id", ondelete="CASCADE"),
+            nullable=False,
+            index=True,
+        ),
+        sa.Column(
+            "opportunity_id",
+            sa.Integer(),
+            sa.ForeignKey("opportunities.id", ondelete="CASCADE"),
+            nullable=False,
+            index=True,
+        ),
         sa.Column("match_id", sa.Integer(), sa.ForeignKey("matches.id", ondelete="SET NULL"), nullable=True),
-        sa.Column("allocation_cycle_id", sa.Integer(), sa.ForeignKey("allocation_cycles.id", ondelete="CASCADE"), nullable=False, index=True),
+        sa.Column(
+            "allocation_cycle_id",
+            sa.Integer(),
+            sa.ForeignKey("allocation_cycles.id", ondelete="CASCADE"),
+            nullable=False,
+            index=True,
+        ),
         sa.Column("status", allocation_status_enum, nullable=False, server_default="pending", index=True),
         sa.Column("explanation", sa.Text(), nullable=True),
         sa.Column("allocated_at", sa.DateTime(timezone=True), nullable=True),
@@ -161,9 +203,27 @@ def upgrade() -> None:
     op.create_table(
         "waitlist_entries",
         sa.Column("id", sa.Integer(), primary_key=True, autoincrement=True),
-        sa.Column("candidate_id", sa.Integer(), sa.ForeignKey("candidate_profiles.id", ondelete="CASCADE"), nullable=False, index=True),
-        sa.Column("opportunity_id", sa.Integer(), sa.ForeignKey("opportunities.id", ondelete="CASCADE"), nullable=False, index=True),
-        sa.Column("allocation_cycle_id", sa.Integer(), sa.ForeignKey("allocation_cycles.id", ondelete="CASCADE"), nullable=False, index=True),
+        sa.Column(
+            "candidate_id",
+            sa.Integer(),
+            sa.ForeignKey("candidate_profiles.id", ondelete="CASCADE"),
+            nullable=False,
+            index=True,
+        ),
+        sa.Column(
+            "opportunity_id",
+            sa.Integer(),
+            sa.ForeignKey("opportunities.id", ondelete="CASCADE"),
+            nullable=False,
+            index=True,
+        ),
+        sa.Column(
+            "allocation_cycle_id",
+            sa.Integer(),
+            sa.ForeignKey("allocation_cycles.id", ondelete="CASCADE"),
+            nullable=False,
+            index=True,
+        ),
         sa.Column("position", sa.Integer(), nullable=False),
         sa.Column("status", sa.String(50), nullable=False, server_default="waiting", index=True),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),

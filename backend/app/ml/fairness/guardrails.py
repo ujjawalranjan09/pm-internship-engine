@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import numpy as np
 
@@ -28,6 +28,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class GuardrailConfig:
     """Configuration for fairness guardrails."""
+
     # Maximum allowed degradation in average score (absolute)
     max_quality_degradation: float = 0.10
 
@@ -54,27 +55,29 @@ class GuardrailConfig:
 @dataclass
 class GuardrailViolation:
     """A single guardrail violation."""
+
     guardrail_name: str
     severity: str  # "warning", "critical"
     message: str
     current_value: float
     threshold: float
-    details: Dict[str, Any] = field(default_factory=dict)
+    details: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
 class GuardrailReport:
     """Report on guardrail status after fairness adjustments."""
+
     passed: bool = True
-    violations: List[GuardrailViolation] = field(default_factory=list)
+    violations: list[GuardrailViolation] = field(default_factory=list)
     original_mean_score: float = 0.0
     adjusted_mean_score: float = 0.0
     quality_degradation: float = 0.0
     original_std: float = 0.0
     adjusted_std: float = 0.0
-    recommendations: List[str] = field(default_factory=list)
+    recommendations: list[str] = field(default_factory=list)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "passed": self.passed,
             "violations": [
@@ -105,14 +108,14 @@ class FairnessGuardrails:
             # Handle violations
     """
 
-    def __init__(self, config: Optional[GuardrailConfig] = None) -> None:
+    def __init__(self, config: GuardrailConfig | None = None) -> None:
         self.config = config or GuardrailConfig()
 
     def check(
         self,
         original_scores: np.ndarray,
         adjusted_scores: np.ndarray,
-        candidate_metadata: Optional[List[Dict[str, Any]]] = None,
+        candidate_metadata: list[dict[str, Any]] | None = None,
     ) -> GuardrailReport:
         """
         Check guardrails after fairness adjustments.
@@ -139,16 +142,18 @@ class FairnessGuardrails:
         # Note: fairness boosts can increase the mean, which is fine
         if report.adjusted_mean_score < self.config.min_average_score:
             report.passed = False
-            report.violations.append(GuardrailViolation(
-                guardrail_name="min_average_score",
-                severity="critical",
-                message=(
-                    f"Average score after adjustment ({report.adjusted_mean_score:.3f}) "
-                    f"is below minimum threshold ({self.config.min_average_score:.3f})"
-                ),
-                current_value=report.adjusted_mean_score,
-                threshold=self.config.min_average_score,
-            ))
+            report.violations.append(
+                GuardrailViolation(
+                    guardrail_name="min_average_score",
+                    severity="critical",
+                    message=(
+                        f"Average score after adjustment ({report.adjusted_mean_score:.3f}) "
+                        f"is below minimum threshold ({self.config.min_average_score:.3f})"
+                    ),
+                    current_value=report.adjusted_mean_score,
+                    threshold=self.config.min_average_score,
+                )
+            )
 
         # ── Score compression check ───────────────────────────────
         report.original_std = float(np.std(original_scores))
@@ -158,23 +163,23 @@ class FairnessGuardrails:
             std_ratio = report.adjusted_std / report.original_std
             if std_ratio < self.config.min_score_std_ratio:
                 report.passed = False
-                report.violations.append(GuardrailViolation(
-                    guardrail_name="score_compression",
-                    severity="warning",
-                    message=(
-                        f"Score variance reduced by {(1 - std_ratio):.0%} "
-                        f"(std ratio: {std_ratio:.2f}). Fairness adjustments may be "
-                        f"compressing scores too much, reducing discrimination ability."
-                    ),
-                    current_value=std_ratio,
-                    threshold=self.config.min_score_std_ratio,
-                ))
+                report.violations.append(
+                    GuardrailViolation(
+                        guardrail_name="score_compression",
+                        severity="warning",
+                        message=(
+                            f"Score variance reduced by {(1 - std_ratio):.0%} "
+                            f"(std ratio: {std_ratio:.2f}). Fairness adjustments may be "
+                            f"compressing scores too much, reducing discrimination ability."
+                        ),
+                        current_value=std_ratio,
+                        threshold=self.config.min_score_std_ratio,
+                    )
+                )
 
         # ── Group-level checks ────────────────────────────────────
         if candidate_metadata:
-            group_report = self._check_group_metrics(
-                adjusted_scores, candidate_metadata
-            )
+            group_report = self._check_group_metrics(adjusted_scores, candidate_metadata)
             report.violations.extend(group_report)
             if any(v.severity == "critical" for v in group_report):
                 report.passed = False
@@ -185,11 +190,12 @@ class FairnessGuardrails:
         # ── Logging ───────────────────────────────────────────────
         if report.passed:
             logger.info(
-                "Guardrails PASSED. Quality degradation: %.3f, "
-                "Mean: %.3f→%.3f, Std: %.3f→%.3f",
+                "Guardrails PASSED. Quality degradation: %.3f, Mean: %.3f→%.3f, Std: %.3f→%.3f",
                 report.quality_degradation,
-                report.original_mean_score, report.adjusted_mean_score,
-                report.original_std, report.adjusted_std,
+                report.original_mean_score,
+                report.adjusted_mean_score,
+                report.original_std,
+                report.adjusted_std,
             )
         else:
             logger.warning(
@@ -203,13 +209,13 @@ class FairnessGuardrails:
     def _check_group_metrics(
         self,
         scores: np.ndarray,
-        metadata: List[Dict[str, Any]],
-    ) -> List[GuardrailViolation]:
+        metadata: list[dict[str, Any]],
+    ) -> list[GuardrailViolation]:
         """Check group-level fairness metrics."""
         violations = []
 
         # Group allocation rates
-        groups: Dict[str, List[float]] = {}
+        groups: dict[str, list[float]] = {}
         for i, meta in enumerate(metadata):
             if i >= len(scores):
                 break
@@ -226,36 +232,40 @@ class FairnessGuardrails:
         for group, vals in groups.items():
             rate = len(vals) / total
             if rate > self.config.max_single_group_rate:
-                violations.append(GuardrailViolation(
-                    guardrail_name="dominant_group",
-                    severity="warning",
-                    message=(
-                        f"Group '{group}' has {rate:.0%} of all candidates, "
-                        f"exceeding {self.config.max_single_group_rate:.0%} threshold."
-                    ),
-                    current_value=rate,
-                    threshold=self.config.max_single_group_rate,
-                ))
+                violations.append(
+                    GuardrailViolation(
+                        guardrail_name="dominant_group",
+                        severity="warning",
+                        message=(
+                            f"Group '{group}' has {rate:.0%} of all candidates, "
+                            f"exceeding {self.config.max_single_group_rate:.0%} threshold."
+                        ),
+                        current_value=rate,
+                        threshold=self.config.max_single_group_rate,
+                    )
+                )
 
         # Check group rate differences
         if len(group_means) >= 2:
             rates = list(group_means.values())
             max_diff = max(rates) - min(rates)
             if max_diff > self.config.max_group_rate_difference:
-                violations.append(GuardrailViolation(
-                    guardrail_name="group_rate_difference",
-                    severity="warning",
-                    message=(
-                        f"Score difference between groups is {max_diff:.3f}, "
-                        f"exceeding threshold {self.config.max_group_rate_difference:.3f}."
-                    ),
-                    current_value=max_diff,
-                    threshold=self.config.max_group_rate_difference,
-                ))
+                violations.append(
+                    GuardrailViolation(
+                        guardrail_name="group_rate_difference",
+                        severity="warning",
+                        message=(
+                            f"Score difference between groups is {max_diff:.3f}, "
+                            f"exceeding threshold {self.config.max_group_rate_difference:.3f}."
+                        ),
+                        current_value=max_diff,
+                        threshold=self.config.max_group_rate_difference,
+                    )
+                )
 
         return violations
 
-    def _generate_recommendations(self, report: GuardrailReport) -> List[str]:
+    def _generate_recommendations(self, report: GuardrailReport) -> list[str]:
         """Generate actionable recommendations based on violations."""
         recommendations = []
 
@@ -282,10 +292,7 @@ class FairnessGuardrails:
                 )
 
         if not recommendations and not report.passed:
-            recommendations.append(
-                "Review fairness policy configuration and consider reducing "
-                "adjustment magnitudes."
-            )
+            recommendations.append("Review fairness policy configuration and consider reducing adjustment magnitudes.")
 
         return recommendations
 
@@ -299,9 +306,7 @@ class FairnessGuardrails:
         if not self.config.auto_reject:
             return False
 
-        critical_count = sum(
-            1 for v in report.violations if v.severity == "critical"
-        )
+        critical_count = sum(1 for v in report.violations if v.severity == "critical")
         return critical_count > 0
 
     def compute_safe_adjustment(

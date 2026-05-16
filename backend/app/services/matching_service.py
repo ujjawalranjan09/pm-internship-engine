@@ -41,16 +41,12 @@ class MatchingService:
             return list(existing)
 
         # Generate fresh matches
-        candidate_result = await self.db.execute(
-            select(CandidateProfile).where(CandidateProfile.id == candidate_id)
-        )
+        candidate_result = await self.db.execute(select(CandidateProfile).where(CandidateProfile.id == candidate_id))
         candidate = candidate_result.scalar_one_or_none()
         if candidate is None:
             return []
 
-        opportunities_result = await self.db.execute(
-            select(Opportunity).where(Opportunity.is_active == True)
-        )
+        opportunities_result = await self.db.execute(select(Opportunity).where(Opportunity.is_active))
         opportunities = opportunities_result.scalars().all()
 
         matches = await self._pipeline(candidate, list(opportunities), top_k)
@@ -58,14 +54,10 @@ class MatchingService:
 
     async def run_batch_matching(self) -> dict[str, Any]:
         """Run matching for all active candidates against all active opportunities."""
-        candidates_result = await self.db.execute(
-            select(CandidateProfile)
-        )
+        candidates_result = await self.db.execute(select(CandidateProfile))
         candidates = candidates_result.scalars().all()
 
-        opportunities_result = await self.db.execute(
-            select(Opportunity).where(Opportunity.is_active == True)
-        )
+        opportunities_result = await self.db.execute(select(Opportunity).where(Opportunity.is_active))
         opportunities = opportunities_result.scalars().all()
 
         total_matches = 0
@@ -110,9 +102,7 @@ class MatchingService:
         stored_matches = await self._store_matches(candidate.id, top_matches)
         return stored_matches
 
-    def _filter_stage(
-        self, candidate: CandidateProfile, opportunities: list[Opportunity]
-    ) -> list[Opportunity]:
+    def _filter_stage(self, candidate: CandidateProfile, opportunities: list[Opportunity]) -> list[Opportunity]:
         """Stage 1: Rule-based eligibility filtering."""
         eligible = []
         for opp in opportunities:
@@ -142,9 +132,7 @@ class MatchingService:
                 "profile_completeness": candidate.profile_completion_score,
             }
 
-            total_score = sum(
-                self.weights.get(key, 0) * value for key, value in breakdown.items()
-            )
+            total_score = sum(self.weights.get(key, 0) * value for key, value in breakdown.items())
             scored.append((opp, total_score, breakdown))
 
         scored.sort(key=lambda x: x[1], reverse=True)
@@ -237,9 +225,12 @@ class MatchingService:
 
         # Check field match
         required_field = criteria.get("field_of_study")
-        if required_field and edu.get("field_of_study"):
-            if required_field.lower() in edu.get("field_of_study", "").lower():
-                score = min(score + 0.2, 1.0)
+        if (
+            required_field
+            and edu.get("field_of_study")
+            and required_field.lower() in edu.get("field_of_study", "").lower()
+        ):
+            score = min(score + 0.2, 1.0)
 
         return score
 
@@ -249,7 +240,17 @@ class MatchingService:
             return 0.5
 
         sector_skill_map = {
-            "technology": ["python", "java", "javascript", "sql", "machine learning", "data science", "web development", "cloud", "devops"],
+            "technology": [
+                "python",
+                "java",
+                "javascript",
+                "sql",
+                "machine learning",
+                "data science",
+                "web development",
+                "cloud",
+                "devops",
+            ],
             "finance": ["accounting", "finance", "excel", "sql", "data analysis", "banking"],
             "healthcare": ["biology", "chemistry", "healthcare", "medical", "nursing", "pharmacy"],
             "education": ["teaching", "training", "curriculum", "education"],
@@ -278,9 +279,7 @@ class MatchingService:
         score = 0.5
         if candidate.social_category in ("sc", "st"):
             score = 0.9
-        elif candidate.social_category == "obc":
-            score = 0.7
-        elif candidate.social_category == "ews":
+        elif candidate.social_category == "obc" or candidate.social_category == "ews":
             score = 0.7
         if candidate.is_rural:
             score = min(score + 0.1, 1.0)

@@ -4,9 +4,9 @@ import numpy as np
 import pytest
 
 from app.ml.fairness.guardrails import (
-    enforce_min_quality_threshold,
-    enforce_max_adjustment,
     detect_overcorrection,
+    enforce_max_adjustment,
+    enforce_min_quality_threshold,
 )
 
 

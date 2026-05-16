@@ -1,7 +1,7 @@
 """Notification service stub for email/SMS delivery."""
 
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -73,7 +73,7 @@ class NotificationService:
             subject=subject,
             body=body,
             status="sent",
-            sent_at=datetime.now(timezone.utc),
+            sent_at=datetime.now(UTC),
         )
         self.db.add(notification)
         await self.db.flush()
@@ -114,8 +114,4 @@ class NotificationService:
             "completed": f"Your internship at '{opportunity_title}' has been marked as completed.",
         }
         message = status_messages.get(status, f"status updated to '{status}' for '{opportunity_title}'.")
-        return (
-            f"Dear {candidate_name},\n\n"
-            f"Your internship {message}\n\n"
-            f"Best regards,\nPM Internship Scheme"
-        )
+        return f"Dear {candidate_name},\n\nYour internship {message}\n\nBest regards,\nPM Internship Scheme"

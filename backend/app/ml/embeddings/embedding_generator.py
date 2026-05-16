@@ -14,7 +14,6 @@ than latency.
 from __future__ import annotations
 
 import logging
-from typing import Dict, List, Optional, Union
 
 import numpy as np
 
@@ -36,7 +35,7 @@ class EmbeddingGenerator:
     def __init__(
         self,
         model_name: str = "all-MiniLM-L6-v2",
-        device: Optional[str] = None,
+        device: str | None = None,
         batch_size: int = 64,
         show_progress: bool = False,
         normalize: bool = True,
@@ -57,7 +56,7 @@ class EmbeddingGenerator:
         self._show_progress = show_progress
         self._normalize = normalize
         self._model = None
-        self._dimension: Optional[int] = None
+        self._dimension: int | None = None
 
     def _load_model(self):
         """Lazy-load the sentence-transformer model."""
@@ -70,7 +69,7 @@ class EmbeddingGenerator:
             raise ImportError(
                 "sentence-transformers is required for embedding generation. "
                 "Install it with: pip install sentence-transformers"
-            )
+            ) from None
 
         logger.info("Loading sentence-transformer model: %s", self._model_name)
         self._model = SentenceTransformer(
@@ -90,8 +89,8 @@ class EmbeddingGenerator:
 
     def encode(
         self,
-        texts: List[str],
-        batch_size: Optional[int] = None,
+        texts: list[str],
+        batch_size: int | None = None,
     ) -> np.ndarray:
         """
         Encode a list of texts into dense embeddings.
@@ -120,8 +119,8 @@ class EmbeddingGenerator:
 
     def encode_candidates(
         self,
-        candidates: List[Dict],
-        text_fields: Optional[List[str]] = None,
+        candidates: list[dict],
+        text_fields: list[str] | None = None,
     ) -> np.ndarray:
         """
         Encode candidate profiles into embeddings.
@@ -147,8 +146,8 @@ class EmbeddingGenerator:
 
     def encode_opportunities(
         self,
-        opportunities: List[Dict],
-        text_fields: Optional[List[str]] = None,
+        opportunities: list[dict],
+        text_fields: list[str] | None = None,
     ) -> np.ndarray:
         """
         Encode opportunity listings into embeddings.
@@ -184,9 +183,7 @@ class EmbeddingGenerator:
         If embeddings are L2-normalised, this is just the dot product.
         """
         if embeddings_a.size == 0 or embeddings_b.size == 0:
-            return np.zeros(
-                (embeddings_a.shape[0], embeddings_b.shape[0]), dtype=np.float32
-            )
+            return np.zeros((embeddings_a.shape[0], embeddings_b.shape[0]), dtype=np.float32)
 
         # If already normalised, dot product = cosine similarity
         return (embeddings_a @ embeddings_b.T).astype(np.float32)

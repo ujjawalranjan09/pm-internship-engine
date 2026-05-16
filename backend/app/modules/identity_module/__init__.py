@@ -1,7 +1,6 @@
 """Identity domain module — user management and authentication."""
 
 import logging
-from typing import Optional
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -37,11 +36,9 @@ class IdentityModule:
         logger.info("Created user %d (%s, role=%s)", user.id, email, role)
         return user
 
-    async def authenticate(self, email: str, password: str) -> Optional[User]:
+    async def authenticate(self, email: str, password: str) -> User | None:
         """Verify credentials and return the user if valid."""
-        result = await self.db.execute(
-            select(User).where(User.email == email.lower().strip())
-        )
+        result = await self.db.execute(select(User).where(User.email == email.lower().strip()))
         user = result.scalar_one_or_none()
         if user is None:
             return None
@@ -51,19 +48,17 @@ class IdentityModule:
             return None
         return user
 
-    async def get_user(self, user_id: int) -> Optional[User]:
+    async def get_user(self, user_id: int) -> User | None:
         """Fetch a user by ID."""
         result = await self.db.execute(select(User).where(User.id == user_id))
         return result.scalar_one_or_none()
 
-    async def get_by_email(self, email: str) -> Optional[User]:
+    async def get_by_email(self, email: str) -> User | None:
         """Fetch a user by email."""
-        result = await self.db.execute(
-            select(User).where(User.email == email.lower().strip())
-        )
+        result = await self.db.execute(select(User).where(User.email == email.lower().strip()))
         return result.scalar_one_or_none()
 
-    async def deactivate_user(self, user_id: int) -> Optional[User]:
+    async def deactivate_user(self, user_id: int) -> User | None:
         """Soft-delete a user by marking them inactive."""
         user = await self.get_user(user_id)
         if user is None:
@@ -74,9 +69,7 @@ class IdentityModule:
         logger.info("Deactivated user %d", user_id)
         return user
 
-    async def change_password(
-        self, user_id: int, old_password: str, new_password: str
-    ) -> bool:
+    async def change_password(self, user_id: int, old_password: str, new_password: str) -> bool:
         """Change user password after verifying the old one."""
         user = await self.get_user(user_id)
         if user is None:
@@ -91,8 +84,8 @@ class IdentityModule:
     async def list_users(
         self,
         *,
-        role: Optional[str] = None,
-        is_active: Optional[bool] = None,
+        role: str | None = None,
+        is_active: bool | None = None,
         skip: int = 0,
         limit: int = 50,
     ) -> list[User]:

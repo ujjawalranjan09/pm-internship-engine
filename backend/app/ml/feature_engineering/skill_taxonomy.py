@@ -12,7 +12,6 @@ skills (e.g. "Python" ↔ "Django" in the web-development branch).
 from __future__ import annotations
 
 import logging
-from typing import Dict, List, Optional, Set
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +19,7 @@ logger = logging.getLogger(__name__)
 # Each key is a domain; values are lists of skill clusters.
 # Skills within the same cluster are considered related.
 
-_TAXONOMY: Dict[str, List[List[str]]] = {
+_TAXONOMY: dict[str, list[list[str]]] = {
     "programming": [
         ["python", "django", "flask", "fastapi"],
         ["javascript", "typescript", "react", "nextjs", "vue", "angular", "node", "express"],
@@ -85,10 +84,10 @@ class SkillTaxonomy:
         0.0  – unrelated
     """
 
-    def __init__(self, taxonomy: Optional[Dict[str, List[List[str]]]] = None) -> None:
+    def __init__(self, taxonomy: dict[str, list[list[str]]] | None = None) -> None:
         self._taxonomy = taxonomy or _TAXONOMY
-        self._skill_to_domain: Dict[str, str] = {}
-        self._skill_to_cluster: Dict[str, int] = {}
+        self._skill_to_domain: dict[str, str] = {}
+        self._skill_to_cluster: dict[str, int] = {}
         self._build_indices()
 
     def _build_indices(self) -> None:
@@ -133,7 +132,7 @@ class SkillTaxonomy:
 
         return 0.4
 
-    def best_match_score(self, candidate_skills: List[str], required_skills: List[str]) -> float:
+    def best_match_score(self, candidate_skills: list[str], required_skills: list[str]) -> float:
         """
         For each required skill, find the best-matching candidate skill
         and return the average best-match score.
@@ -156,11 +155,11 @@ class SkillTaxonomy:
 
         return total / len(required_skills)
 
-    def get_domain(self, skill: str) -> Optional[str]:
+    def get_domain(self, skill: str) -> str | None:
         """Return the domain a skill belongs to, or None."""
         return self._skill_to_domain.get(skill.lower().strip())
 
-    def get_related_skills(self, skill: str) -> List[str]:
+    def get_related_skills(self, skill: str) -> list[str]:
         """Return all skills in the same cluster as *skill*."""
         key = skill.lower().strip()
         domain = self._skill_to_domain.get(key)
@@ -169,18 +168,15 @@ class SkillTaxonomy:
         if domain is None or cluster_idx is None:
             return []
 
-        return [
-            s for s in self._taxonomy[domain][cluster_idx]
-            if s.lower() != key
-        ]
+        return [s for s in self._taxonomy[domain][cluster_idx] if s.lower() != key]
 
-    def expand_skills(self, skills: List[str], max_depth: int = 1) -> List[str]:
+    def expand_skills(self, skills: list[str], max_depth: int = 1) -> list[str]:
         """
         Expand a skill list by adding related skills from the taxonomy.
 
         With max_depth=1, adds direct cluster neighbours.
         """
-        expanded: Set[str] = {s.lower().strip() for s in skills}
+        expanded: set[str] = {s.lower().strip() for s in skills}
 
         if max_depth >= 1:
             for skill in skills:

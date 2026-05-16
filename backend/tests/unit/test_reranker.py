@@ -12,14 +12,16 @@ from app.ml.ranking.reranker import (
 
 @pytest.fixture
 def sample_candidates():
-    return pd.DataFrame({
-        "candidate_id": ["c1", "c2", "c3", "c4", "c5"],
-        "district": ["A", "B", "A", "C", "B"],
-        "category": ["general", "sc", "obc", "st", "general"],
-        "is_rural": [False, True, True, False, False],
-        "gender": ["male", "female", "male", "female", "male"],
-        "previous_allocations": [0, 0, 1, 0, 3],
-    })
+    return pd.DataFrame(
+        {
+            "candidate_id": ["c1", "c2", "c3", "c4", "c5"],
+            "district": ["A", "B", "A", "C", "B"],
+            "category": ["general", "sc", "obc", "st", "general"],
+            "is_rural": [False, True, True, False, False],
+            "gender": ["male", "female", "male", "female", "male"],
+            "previous_allocations": [0, 0, 1, 0, 3],
+        }
+    )
 
 
 class TestFairnessReranker:

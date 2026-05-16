@@ -1,6 +1,6 @@
 """Notification endpoints: list and mark as read."""
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -23,11 +23,7 @@ async def list_notifications(
 ):
     """List notifications for the authenticated user."""
     query = select(Notification).where(Notification.user_id == current_user.id)
-    count_query = (
-        select(func.count())
-        .select_from(Notification)
-        .where(Notification.user_id == current_user.id)
-    )
+    count_query = select(func.count()).select_from(Notification).where(Notification.user_id == current_user.id)
 
     if unread_only:
         query = query.where(Notification.status != "read")

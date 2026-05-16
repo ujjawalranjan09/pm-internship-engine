@@ -138,14 +138,16 @@ class SearchService:
         filter_clauses: list[dict] = []
 
         if query:
-            must_clauses.append({
-                "multi_match": {
-                    "query": query,
-                    "fields": ["title^3", "description", "required_skills^2"],
-                    "type": "best_fields",
-                    "fuzziness": "AUTO",
+            must_clauses.append(
+                {
+                    "multi_match": {
+                        "query": query,
+                        "fields": ["title^3", "description", "required_skills^2"],
+                        "type": "best_fields",
+                        "fuzziness": "AUTO",
+                    }
                 }
-            })
+            )
 
         filter_clauses.append({"term": {"is_active": True}})
 

@@ -12,32 +12,141 @@ from __future__ import annotations
 import logging
 import math
 import re
-import string
 from collections import Counter
-from typing import Dict, List, Optional, Set, Tuple
 
 logger = logging.getLogger(__name__)
 
 # Common English + Hindi-English stop words relevant to the domain
-_STOP_WORDS: Set[str] = {
-    "a", "an", "the", "is", "are", "was", "were", "be", "been", "being",
-    "have", "has", "had", "do", "does", "did", "will", "would", "could",
-    "should", "may", "might", "shall", "can", "need", "dare", "ought",
-    "used", "to", "of", "in", "for", "on", "with", "at", "by", "from",
-    "as", "into", "through", "during", "before", "after", "above", "below",
-    "between", "out", "off", "over", "under", "again", "further", "then",
-    "once", "here", "there", "when", "where", "why", "how", "all", "both",
-    "each", "few", "more", "most", "other", "some", "such", "no", "nor",
-    "not", "only", "own", "same", "so", "than", "too", "very", "just",
-    "because", "but", "and", "or", "if", "while", "about", "up", "down",
-    "it", "its", "this", "that", "these", "those", "i", "me", "my", "we",
-    "our", "you", "your", "he", "him", "his", "she", "her", "they", "them",
-    "their", "what", "which", "who", "whom", "am", "also", "well", "like",
-    "etc", "experience", "working", "work", "knowledge", "skills", "ability",
+_STOP_WORDS: set[str] = {
+    "a",
+    "an",
+    "the",
+    "is",
+    "are",
+    "was",
+    "were",
+    "be",
+    "been",
+    "being",
+    "have",
+    "has",
+    "had",
+    "do",
+    "does",
+    "did",
+    "will",
+    "would",
+    "could",
+    "should",
+    "may",
+    "might",
+    "shall",
+    "can",
+    "need",
+    "dare",
+    "ought",
+    "used",
+    "to",
+    "of",
+    "in",
+    "for",
+    "on",
+    "with",
+    "at",
+    "by",
+    "from",
+    "as",
+    "into",
+    "through",
+    "during",
+    "before",
+    "after",
+    "above",
+    "below",
+    "between",
+    "out",
+    "off",
+    "over",
+    "under",
+    "again",
+    "further",
+    "then",
+    "once",
+    "here",
+    "there",
+    "when",
+    "where",
+    "why",
+    "how",
+    "all",
+    "both",
+    "each",
+    "few",
+    "more",
+    "most",
+    "other",
+    "some",
+    "such",
+    "no",
+    "nor",
+    "not",
+    "only",
+    "own",
+    "same",
+    "so",
+    "than",
+    "too",
+    "very",
+    "just",
+    "because",
+    "but",
+    "and",
+    "or",
+    "if",
+    "while",
+    "about",
+    "up",
+    "down",
+    "it",
+    "its",
+    "this",
+    "that",
+    "these",
+    "those",
+    "i",
+    "me",
+    "my",
+    "we",
+    "our",
+    "you",
+    "your",
+    "he",
+    "him",
+    "his",
+    "she",
+    "her",
+    "they",
+    "them",
+    "their",
+    "what",
+    "which",
+    "who",
+    "whom",
+    "am",
+    "also",
+    "well",
+    "like",
+    "etc",
+    "experience",
+    "working",
+    "work",
+    "knowledge",
+    "skills",
+    "ability",
 }
 
 # Normalisation map for common abbreviations and variants
-_NORMALISATION_MAP: Dict[str, str] = {
+_NORMALISATION_MAP: dict[str, str] = {
     "js": "javascript",
     "ts": "typescript",
     "py": "python",
@@ -70,8 +179,8 @@ class TextProcessor:
 
     def __init__(
         self,
-        stop_words: Optional[Set[str]] = None,
-        normalisation_map: Optional[Dict[str, str]] = None,
+        stop_words: set[str] | None = None,
+        normalisation_map: dict[str, str] | None = None,
     ) -> None:
         self._stop_words = stop_words or _STOP_WORDS
         self._normalisation = normalisation_map or _NORMALISATION_MAP
@@ -100,7 +209,7 @@ class TextProcessor:
 
         return text
 
-    def tokenize(self, text: str, remove_stopwords: bool = True) -> List[str]:
+    def tokenize(self, text: str, remove_stopwords: bool = True) -> list[str]:
         """
         Tokenise text into cleaned tokens.
 
@@ -114,7 +223,7 @@ class TextProcessor:
 
         return tokens
 
-    def extract_keywords(self, text: str, top_k: int = 20) -> List[Tuple[str, float]]:
+    def extract_keywords(self, text: str, top_k: int = 20) -> list[tuple[str, float]]:
         """
         Extract keywords from text using a TF-like scoring.
 
@@ -129,13 +238,13 @@ class TextProcessor:
         counter = Counter(tokens)
         total = len(tokens)
 
-        keywords: Dict[str, float] = {}
+        keywords: dict[str, float] = {}
         for word, count in counter.items():
             keywords[word] = count / total
 
         # Bigrams
         for i in range(len(tokens) - 1):
-            bigram = f"{tokens[i]} {tokens[i+1]}"
+            bigram = f"{tokens[i]} {tokens[i + 1]}"
             keywords[bigram] = keywords.get(bigram, 0) + 0.5 / total
 
         sorted_kw = sorted(keywords.items(), key=lambda x: -x[1])
@@ -172,8 +281,8 @@ class TextProcessor:
         all_tokens = set(freq_a.keys()) | set(freq_b.keys())
 
         dot_product = sum(freq_a.get(t, 0) * freq_b.get(t, 0) for t in all_tokens)
-        norm_a = math.sqrt(sum(v ** 2 for v in freq_a.values()))
-        norm_b = math.sqrt(sum(v ** 2 for v in freq_b.values()))
+        norm_a = math.sqrt(sum(v**2 for v in freq_a.values()))
+        norm_b = math.sqrt(sum(v**2 for v in freq_b.values()))
 
         if norm_a == 0 or norm_b == 0:
             return 0.0
@@ -219,7 +328,7 @@ class TextProcessor:
             raise ValueError(f"Unknown similarity method: {method!r}. Choose from {list(methods)}")
         return fn(text_a, text_b)
 
-    def build_skill_text(self, skills: List[str], education: Optional[Dict] = None) -> str:
+    def build_skill_text(self, skills: list[str], education: dict | None = None) -> str:
         """
         Build a combined text representation from skills and education.
 

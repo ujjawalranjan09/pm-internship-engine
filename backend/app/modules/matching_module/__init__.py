@@ -5,9 +5,9 @@ from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.candidate import CandidateProfile
+from app.models.candidate import CandidateProfile as CandidateProfile
 from app.models.match import Match
-from app.models.opportunity import Opportunity
+from app.models.opportunity import Opportunity as Opportunity
 from app.services.matching_service import MatchingService
 
 logger = logging.getLogger(__name__)
@@ -24,9 +24,7 @@ class MatchingModule:
         self.db = db
         self._service = MatchingService(db)
 
-    async def get_recommendations(
-        self, candidate_id: int, top_k: int = 10
-    ) -> list[Match]:
+    async def get_recommendations(self, candidate_id: int, top_k: int = 10) -> list[Match]:
         """Get top-K opportunity recommendations for a candidate.
 
         Returns cached matches if available, otherwise runs the pipeline.
@@ -53,9 +51,7 @@ class MatchingModule:
         """Retrieve a single match with full details."""
         from sqlalchemy import select
 
-        result = await self.db.execute(
-            select(Match).where(Match.id == match_id)
-        )
+        result = await self.db.execute(select(Match).where(Match.id == match_id))
         return result.scalar_one_or_none()
 
     async def get_candidate_matches(
@@ -75,9 +71,7 @@ class MatchingModule:
         """Delete cached matches for a candidate so next request re-runs pipeline."""
         from sqlalchemy import delete
 
-        result = await self.db.execute(
-            delete(Match).where(Match.candidate_id == candidate_id)
-        )
+        result = await self.db.execute(delete(Match).where(Match.candidate_id == candidate_id))
         count = result.rowcount  # type: ignore[union-attr]
         await self.db.flush()
         logger.info("Invalidated %d cached matches for candidate %d", count, candidate_id)

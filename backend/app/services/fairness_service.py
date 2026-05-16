@@ -88,8 +88,13 @@ class FairnessService:
 
         # Location preference for underserved areas
         underserved_states = {
-            "bihar", "jharkhand", "chhattisgarh", "odisha",
-            "madhya pradesh", "rajasthan", "uttar pradesh",
+            "bihar",
+            "jharkhand",
+            "chhattisgarh",
+            "odisha",
+            "madhya pradesh",
+            "rajasthan",
+            "uttar pradesh",
         }
         if candidate.state and candidate.state.lower() in underserved_states:
             boost += 0.05
@@ -124,9 +129,7 @@ class FairnessService:
         return {
             "total": total,
             "category_distribution": category_counts,
-            "category_percentages": {
-                k: round(v / total * 100, 1) for k, v in category_counts.items()
-            },
+            "category_percentages": {k: round(v / total * 100, 1) for k, v in category_counts.items()},
             "rural_count": rural_count,
             "rural_percentage": round(rural_count / total * 100, 1) if total else 0,
         }

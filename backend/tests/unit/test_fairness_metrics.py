@@ -6,12 +6,12 @@ import pytest
 
 from app.ml.fairness.fairness_metrics import (
     category_distribution,
-    concentration_index,
-    gini_coefficient,
-    geographic_distribution,
-    rural_urban_ratio,
-    gender_distribution,
     compute_all_fairness_metrics,
+    concentration_index,
+    gender_distribution,
+    geographic_distribution,
+    gini_coefficient,
+    rural_urban_ratio,
 )
 
 
@@ -76,14 +76,18 @@ class TestCategoryDistribution:
     """Tests for category_distribution function."""
 
     def test_basic_distribution(self):
-        candidates = pd.DataFrame({
-            "candidate_id": [1, 2, 3, 4, 5],
-            "category": ["general", "obc", "sc", "st", "general"],
-        })
-        allocations = pd.DataFrame({
-            "candidate_id": [1, 3, 5],
-            "opportunity_id": [10, 10, 11],
-        })
+        candidates = pd.DataFrame(
+            {
+                "candidate_id": [1, 2, 3, 4, 5],
+                "category": ["general", "obc", "sc", "st", "general"],
+            }
+        )
+        allocations = pd.DataFrame(
+            {
+                "candidate_id": [1, 3, 5],
+                "opportunity_id": [10, 10, 11],
+            }
+        )
         result = category_distribution(allocations, candidates)
         assert "general" in result
         assert "sc" in result
@@ -97,10 +101,12 @@ class TestCategoryDistribution:
         assert result == {}
 
     def test_empty_allocations(self):
-        candidates = pd.DataFrame({
-            "candidate_id": [1, 2],
-            "category": ["general", "obc"],
-        })
+        candidates = pd.DataFrame(
+            {
+                "candidate_id": [1, 2],
+                "category": ["general", "obc"],
+            }
+        )
         allocations = pd.DataFrame({"candidate_id": [], "opportunity_id": []})
         result = category_distribution(allocations, candidates)
         assert result["general"]["allocated"] == 0
@@ -110,14 +116,18 @@ class TestGeographicDistribution:
     """Tests for geographic_distribution function."""
 
     def test_basic_geo_distribution(self):
-        candidates = pd.DataFrame({
-            "candidate_id": [1, 2, 3],
-            "district": ["A", "A", "B"],
-        })
-        allocations = pd.DataFrame({
-            "candidate_id": [1, 2],
-            "opportunity_id": [10, 10],
-        })
+        candidates = pd.DataFrame(
+            {
+                "candidate_id": [1, 2, 3],
+                "district": ["A", "A", "B"],
+            }
+        )
+        allocations = pd.DataFrame(
+            {
+                "candidate_id": [1, 2],
+                "opportunity_id": [10, 10],
+            }
+        )
         result = geographic_distribution(allocations, candidates)
         assert result["A"]["allocated"] == 2
         assert result["B"]["allocated"] == 0
@@ -133,10 +143,12 @@ class TestRuralUrbanRatio:
     """Tests for rural_urban_ratio function."""
 
     def test_basic_ratio(self):
-        allocations = pd.DataFrame({
-            "candidate_id": [1, 2, 3, 4],
-            "is_rural": [True, False, True, False],
-        })
+        allocations = pd.DataFrame(
+            {
+                "candidate_id": [1, 2, 3, 4],
+                "is_rural": [True, False, True, False],
+            }
+        )
         result = rural_urban_ratio(allocations)
         assert result["rural_count"] == 2
         assert result["urban_count"] == 2
@@ -152,10 +164,12 @@ class TestGenderDistribution:
     """Tests for gender_distribution function."""
 
     def test_basic_gender(self):
-        candidates = pd.DataFrame({
-            "candidate_id": [1, 2, 3],
-            "gender": ["male", "female", "female"],
-        })
+        candidates = pd.DataFrame(
+            {
+                "candidate_id": [1, 2, 3],
+                "gender": ["male", "female", "female"],
+            }
+        )
         allocations = pd.DataFrame({"candidate_id": [1, 2]})
         result = gender_distribution(allocations, candidates)
         assert result["male"]["allocated"] == 1
@@ -172,26 +186,32 @@ class TestComputeAllFairnessMetrics:
     """Tests for compute_all_fairness_metrics."""
 
     def test_full_report(self):
-        candidates = pd.DataFrame({
-            "candidate_id": [1, 2, 3, 4, 5, 6],
-            "category": ["general", "obc", "sc", "st", "general", "obc"],
-            "district": ["A", "A", "B", "B", "C", "C"],
-            "gender": ["male", "female", "male", "female", "male", "female"],
-            "is_rural": [False, True, True, False, False, True],
-        })
-        allocations = pd.DataFrame({
-            "candidate_id": [1, 2, 3, 4],
-            "opportunity_id": [10, 10, 11, 11],
-        })
+        candidates = pd.DataFrame(
+            {
+                "candidate_id": [1, 2, 3, 4, 5, 6],
+                "category": ["general", "obc", "sc", "st", "general", "obc"],
+                "district": ["A", "A", "B", "B", "C", "C"],
+                "gender": ["male", "female", "male", "female", "male", "female"],
+                "is_rural": [False, True, True, False, False, True],
+            }
+        )
+        allocations = pd.DataFrame(
+            {
+                "candidate_id": [1, 2, 3, 4],
+                "opportunity_id": [10, 10, 11, 11],
+            }
+        )
         report = compute_all_fairness_metrics(allocations, candidates)
         assert report.overall_fairness_score >= 0.0
         assert report.gini_coefficient >= 0.0
         assert isinstance(report.recommendations, list)
 
     def test_no_candidates(self):
-        allocations = pd.DataFrame({
-            "candidate_id": [1, 2],
-            "opportunity_id": [10, 10],
-        })
+        allocations = pd.DataFrame(
+            {
+                "candidate_id": [1, 2],
+                "opportunity_id": [10, 10],
+            }
+        )
         report = compute_all_fairness_metrics(allocations, candidates=None)
         assert report.gini_coefficient == 0.0

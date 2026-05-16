@@ -19,11 +19,10 @@ import json
 import logging
 import os
 import shutil
-import time
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -31,19 +30,20 @@ logger = logging.getLogger(__name__)
 @dataclass
 class ModelVersion:
     """Metadata for a single model version."""
+
     model_name: str
     version: str
     created_at: str
     status: str = "registered"  # registered, staging, production, archived
-    training_config: Dict[str, Any] = field(default_factory=dict)
-    training_metrics: Dict[str, Any] = field(default_factory=dict)
-    evaluation_metrics: Dict[str, Any] = field(default_factory=dict)
-    feature_names: List[str] = field(default_factory=list)
+    training_config: dict[str, Any] = field(default_factory=dict)
+    training_metrics: dict[str, Any] = field(default_factory=dict)
+    evaluation_metrics: dict[str, Any] = field(default_factory=dict)
+    feature_names: list[str] = field(default_factory=list)
     description: str = ""
-    tags: List[str] = field(default_factory=list)
+    tags: list[str] = field(default_factory=list)
     artifact_path: str = ""
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "model_name": self.model_name,
             "version": self.version,
@@ -59,7 +59,7 @@ class ModelVersion:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "ModelVersion":
+    def from_dict(cls, data: dict[str, Any]) -> ModelVersion:
         return cls(**data)
 
 
@@ -80,7 +80,7 @@ class ModelRegistry:
         self._base_path = Path(base_path)
         self._base_path.mkdir(parents=True, exist_ok=True)
         self._registry_file = self._base_path / "registry.json"
-        self._models: Dict[str, Dict[str, ModelVersion]] = {}
+        self._models: dict[str, dict[str, ModelVersion]] = {}
         self._load_registry()
 
     def _load_registry(self) -> None:
@@ -90,10 +90,7 @@ class ModelRegistry:
                 with open(self._registry_file) as f:
                     data = json.load(f)
                 for name, versions in data.items():
-                    self._models[name] = {
-                        v: ModelVersion.from_dict(meta)
-                        for v, meta in versions.items()
-                    }
+                    self._models[name] = {v: ModelVersion.from_dict(meta) for v, meta in versions.items()}
                 logger.info(
                     "Loaded model registry: %d models, %d total versions",
                     len(self._models),
@@ -105,10 +102,7 @@ class ModelRegistry:
 
     def _save_registry(self) -> None:
         """Persist registry state to disk."""
-        data = {
-            name: {v: meta.to_dict() for v, meta in versions.items()}
-            for name, versions in self._models.items()
-        }
+        data = {name: {v: meta.to_dict() for v, meta in versions.items()} for name, versions in self._models.items()}
         with open(self._registry_file, "w") as f:
             json.dump(data, f, indent=2)
 
@@ -117,12 +111,12 @@ class ModelRegistry:
         model_name: str,
         version: str,
         model_path: str,
-        training_config: Optional[Dict[str, Any]] = None,
-        training_metrics: Optional[Dict[str, Any]] = None,
-        evaluation_metrics: Optional[Dict[str, Any]] = None,
-        feature_names: Optional[List[str]] = None,
+        training_config: dict[str, Any] | None = None,
+        training_metrics: dict[str, Any] | None = None,
+        evaluation_metrics: dict[str, Any] | None = None,
+        feature_names: list[str] | None = None,
         description: str = "",
-        tags: Optional[List[str]] = None,
+        tags: list[str] | None = None,
     ) -> ModelVersion:
         """
         Register a new model version.
@@ -159,7 +153,7 @@ class ModelRegistry:
         metadata = ModelVersion(
             model_name=model_name,
             version=version,
-            created_at=datetime.now(timezone.utc).isoformat(),
+            created_at=datetime.now(UTC).isoformat(),
             status="registered",
             training_config=training_config or {},
             training_metrics=training_metrics or {},
@@ -184,11 +178,11 @@ class ModelRegistry:
         logger.info("Registered model %s/%s at %s", model_name, version, artifact_dest)
         return metadata
 
-    def get(self, model_name: str, version: str) -> Optional[ModelVersion]:
+    def get(self, model_name: str, version: str) -> ModelVersion | None:
         """Get metadata for a specific model version."""
         return self._models.get(model_name, {}).get(version)
 
-    def get_latest(self, model_name: str) -> Optional[ModelVersion]:
+    def get_latest(self, model_name: str) -> ModelVersion | None:
         """Get the latest registered version of a model."""
         versions = self._models.get(model_name, {})
         if not versions:
@@ -201,7 +195,7 @@ class ModelRegistry:
         )
         return sorted_versions[0]
 
-    def get_production(self, model_name: str) -> Optional[ModelVersion]:
+    def get_production(self, model_name: str) -> ModelVersion | None:
         """Get the current production version of a model."""
         versions = self._models.get(model_name, {})
         for v in versions.values():
@@ -209,7 +203,7 @@ class ModelRegistry:
                 return v
         return None
 
-    def get_staging(self, model_name: str) -> Optional[ModelVersion]:
+    def get_staging(self, model_name: str) -> ModelVersion | None:
         """Get the current staging version of a model."""
         versions = self._models.get(model_name, {})
         for v in versions.values():
@@ -217,7 +211,7 @@ class ModelRegistry:
                 return v
         return None
 
-    def list_versions(self, model_name: str) -> List[ModelVersion]:
+    def list_versions(self, model_name: str) -> list[ModelVersion]:
         """List all versions of a model, newest first."""
         versions = self._models.get(model_name, {})
         return sorted(
@@ -226,7 +220,7 @@ class ModelRegistry:
             reverse=True,
         )
 
-    def list_models(self) -> List[str]:
+    def list_models(self) -> list[str]:
         """List all registered model names."""
         return list(self._models.keys())
 
@@ -254,7 +248,8 @@ class ModelRegistry:
                 current_prod.status = "archived"
                 logger.info(
                     "Archived previous production model %s/%s",
-                    model_name, current_prod.version,
+                    model_name,
+                    current_prod.version,
                 )
 
         old_status = mv.status
@@ -263,11 +258,14 @@ class ModelRegistry:
 
         logger.info(
             "Promoted %s/%s: %s → %s",
-            model_name, version, old_status, target_status,
+            model_name,
+            version,
+            old_status,
+            target_status,
         )
         return True
 
-    def rollback(self, model_name: str) -> Optional[ModelVersion]:
+    def rollback(self, model_name: str) -> ModelVersion | None:
         """
         Rollback to the previous production model.
 
@@ -295,7 +293,7 @@ class ModelRegistry:
         model_name: str,
         version_a: str,
         version_b: str,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Compare two model versions.
 

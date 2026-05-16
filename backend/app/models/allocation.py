@@ -3,13 +3,13 @@
 import enum
 from datetime import datetime
 
-from sqlalchemy import DateTime, Enum, ForeignKey, Integer, String, Text
+from sqlalchemy import DateTime, Enum, ForeignKey, Integer, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import BaseModel
 
 
-class AllocationStatus(str, enum.Enum):
+class AllocationStatus(enum.StrEnum):
     """Possible allocation statuses."""
 
     PENDING = "pending"
@@ -31,9 +31,7 @@ class Allocation(BaseModel):
     opportunity_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("opportunities.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    match_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("matches.id", ondelete="SET NULL"), nullable=True
-    )
+    match_id: Mapped[int] = mapped_column(Integer, ForeignKey("matches.id", ondelete="SET NULL"), nullable=True)
     allocation_cycle_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("allocation_cycles.id", ondelete="CASCADE"), nullable=False, index=True
     )
@@ -44,9 +42,7 @@ class Allocation(BaseModel):
         index=True,
     )
     explanation: Mapped[str | None] = mapped_column(Text, nullable=True)
-    allocated_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
+    allocated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     # Relationships
     candidate = relationship("CandidateProfile", back_populates="allocations", foreign_keys=[candidate_id])

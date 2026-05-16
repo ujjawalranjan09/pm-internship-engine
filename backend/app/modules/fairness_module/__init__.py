@@ -1,7 +1,7 @@
 """Fairness domain module — metrics, policy, and audit."""
 
 import logging
-from typing import Any, Optional
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -20,40 +20,29 @@ class FairnessModule:
         self.db = db
         self._service = FairnessService()
 
-    async def compute_cycle_fairness(
-        self, cycle_id: int
-    ) -> dict[str, Any]:
+    async def compute_cycle_fairness(self, cycle_id: int) -> dict[str, Any]:
         """Compute fairness metrics for all allocations in a cycle.
 
         Returns category distribution, rural/urban ratio, and
         representation percentages.
         """
-        alloc_result = await self.db.execute(
-            select(Allocation).where(Allocation.allocation_cycle_id == cycle_id)
-        )
+        alloc_result = await self.db.execute(select(Allocation).where(Allocation.allocation_cycle_id == cycle_id))
         allocations = alloc_result.scalars().all()
 
         if not allocations:
             return {"cycle_id": cycle_id, "total": 0}
 
         cand_ids = list(set(a.candidate_id for a in allocations))
-        cand_result = await self.db.execute(
-            select(CandidateProfile).where(CandidateProfile.id.in_(cand_ids))
-        )
+        cand_result = await self.db.execute(select(CandidateProfile).where(CandidateProfile.id.in_(cand_ids)))
         candidates = {c.id: c for c in cand_result.scalars().all()}
 
-        alloc_dicts = [
-            {"candidate_id": a.candidate_id, "opportunity_id": a.opportunity_id}
-            for a in allocations
-        ]
+        alloc_dicts = [{"candidate_id": a.candidate_id, "opportunity_id": a.opportunity_id} for a in allocations]
 
         metrics = self._service.compute_group_fairness_metrics(alloc_dicts, candidates)
         metrics["cycle_id"] = cycle_id
         return metrics
 
-    async def get_category_distribution(
-        self, cycle_id: int
-    ) -> dict[str, dict[str, Any]]:
+    async def get_category_distribution(self, cycle_id: int) -> dict[str, dict[str, Any]]:
         """Return per-category allocation counts and percentages."""
         metrics = await self.compute_cycle_fairness(cycle_id)
         total = metrics.get("total", 0)
@@ -66,22 +55,16 @@ class FairnessModule:
             for cat, count in dist.items()
         }
 
-    async def get_geographic_distribution(
-        self, cycle_id: int
-    ) -> dict[str, dict[str, Any]]:
+    async def get_geographic_distribution(self, cycle_id: int) -> dict[str, dict[str, Any]]:
         """Return per-state allocation counts."""
-        alloc_result = await self.db.execute(
-            select(Allocation).where(Allocation.allocation_cycle_id == cycle_id)
-        )
+        alloc_result = await self.db.execute(select(Allocation).where(Allocation.allocation_cycle_id == cycle_id))
         allocations = alloc_result.scalars().all()
 
         if not allocations:
             return {}
 
         cand_ids = list(set(a.candidate_id for a in allocations))
-        cand_result = await self.db.execute(
-            select(CandidateProfile).where(CandidateProfile.id.in_(cand_ids))
-        )
+        cand_result = await self.db.execute(select(CandidateProfile).where(CandidateProfile.id.in_(cand_ids)))
         candidates = {c.id: c for c in cand_result.scalars().all()}
 
         state_counts: dict[str, int] = {}

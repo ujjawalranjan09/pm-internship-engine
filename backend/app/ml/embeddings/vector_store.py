@@ -14,8 +14,6 @@ from __future__ import annotations
 import json
 import logging
 import os
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 
@@ -38,14 +36,14 @@ class VectorStore:
     def __init__(
         self,
         dimension: int = 384,
-        persist_path: Optional[str] = None,
+        persist_path: str | None = None,
     ) -> None:
         self._dimension = dimension
         self._persist_path = persist_path
 
         # Storage: list of (entity_type, entity_id) aligned with rows of _matrix
-        self._keys: List[Tuple[str, int]] = []
-        self._matrix: Optional[np.ndarray] = None
+        self._keys: list[tuple[str, int]] = []
+        self._matrix: np.ndarray | None = None
 
         if persist_path and os.path.exists(persist_path):
             self._load()
@@ -74,9 +72,7 @@ class VectorStore:
             embedding: 1-D numpy array of shape (dimension,).
         """
         if embedding.shape != (self._dimension,):
-            raise ValueError(
-                f"Expected embedding of shape ({self._dimension},), got {embedding.shape}"
-            )
+            raise ValueError(f"Expected embedding of shape ({self._dimension},), got {embedding.shape}")
 
         key = (entity_type, entity_id)
 
@@ -99,7 +95,7 @@ class VectorStore:
     def add_batch(
         self,
         entity_type: str,
-        entity_ids: List[int],
+        entity_ids: list[int],
         embeddings: np.ndarray,
     ) -> None:
         """
@@ -115,10 +111,10 @@ class VectorStore:
         if embeddings.shape[1] != self._dimension:
             raise ValueError(f"Expected dimension {self._dimension}, got {embeddings.shape[1]}")
 
-        for eid, emb in zip(entity_ids, embeddings):
+        for eid, emb in zip(entity_ids, embeddings, strict=False):
             self.add(entity_type, eid, emb)
 
-    def get(self, entity_type: str, entity_id: int) -> Optional[np.ndarray]:
+    def get(self, entity_type: str, entity_id: int) -> np.ndarray | None:
         """Retrieve a single vector by key, or None if not found."""
         key = (entity_type, entity_id)
         try:
@@ -131,9 +127,9 @@ class VectorStore:
         self,
         query: np.ndarray,
         top_k: int = 10,
-        entity_type: Optional[str] = None,
+        entity_type: str | None = None,
         min_score: float = 0.0,
-    ) -> List[Tuple[str, int, float]]:
+    ) -> list[tuple[str, int, float]]:
         """
         Find the top-k most similar vectors.
 
@@ -180,7 +176,7 @@ class VectorStore:
             scores = scores[order]
 
         results = []
-        for idx, score in zip(indices, scores):
+        for idx, score in zip(indices, scores, strict=False):
             entity_type_val, entity_id = self._keys[idx]
             results.append((entity_type_val, entity_id, float(score)))
 
@@ -205,7 +201,7 @@ class VectorStore:
         self._keys.clear()
         self._matrix = None
 
-    def save(self, path: Optional[str] = None) -> None:
+    def save(self, path: str | None = None) -> None:
         """Persist the store to disk."""
         save_path = path or self._persist_path
         if not save_path:
@@ -234,11 +230,7 @@ class VectorStore:
             self._dimension = data["dimension"]
             self._keys = [tuple(k) for k in data["keys"]]
             matrix_data = data.get("matrix", [])
-            self._matrix = (
-                np.array(matrix_data, dtype=np.float32)
-                if matrix_data
-                else None
-            )
+            self._matrix = np.array(matrix_data, dtype=np.float32) if matrix_data else None
             logger.info(
                 "Vector store loaded from %s (%d vectors)",
                 self._persist_path,

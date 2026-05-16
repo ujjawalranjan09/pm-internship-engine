@@ -15,9 +15,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
-
-import numpy as np
+from typing import Any
 
 from app.ml.feature_engineering.feature_extractor import FeatureVector
 
@@ -27,13 +25,14 @@ logger = logging.getLogger(__name__)
 @dataclass
 class MatchExplanation:
     """Structured explanation for a single candidate-opportunity match."""
+
     summary: str
-    factors: List[Dict[str, Any]] = field(default_factory=list)
-    strengths: List[str] = field(default_factory=list)
-    gaps: List[str] = field(default_factory=list)
+    factors: list[dict[str, Any]] = field(default_factory=list)
+    strengths: list[str] = field(default_factory=list)
+    gaps: list[str] = field(default_factory=list)
     confidence: str = "medium"  # low, medium, high
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "summary": self.summary,
             "factors": self.factors,
@@ -94,9 +93,9 @@ class MatchExplainer:
         self,
         features: FeatureVector,
         score: float,
-        breakdown: Optional[Dict[str, Any]] = None,
-        candidate_name: Optional[str] = None,
-        opportunity_title: Optional[str] = None,
+        breakdown: dict[str, Any] | None = None,
+        candidate_name: str | None = None,
+        opportunity_title: str | None = None,
     ) -> MatchExplanation:
         """
         Generate a match explanation.
@@ -116,20 +115,22 @@ class MatchExplainer:
 
         # Build factor list with contributions
         factors = []
-        for name, value in zip(feature_names, feat_array):
+        for name, value in zip(feature_names, feat_array, strict=False):
             label = self._LABELS.get(name, name)
             weight = 0.0
             if breakdown and name in breakdown and isinstance(breakdown[name], dict):
                 weight = breakdown[name].get("weight", 0.0)
             contribution = value * weight
 
-            factors.append({
-                "feature": name,
-                "label": label,
-                "value": round(float(value), 3),
-                "weight": round(float(weight), 3),
-                "contribution": round(float(contribution), 4),
-            })
+            factors.append(
+                {
+                    "feature": name,
+                    "label": label,
+                    "value": round(float(value), 3),
+                    "weight": round(float(weight), 3),
+                    "contribution": round(float(contribution), 4),
+                }
+            )
 
         # Sort by contribution descending
         factors.sort(key=lambda f: -f["contribution"])
@@ -156,8 +157,12 @@ class MatchExplainer:
 
         # Generate summary
         summary = self._build_summary(
-            score, top_factors, strengths, gaps,
-            candidate_name, opportunity_title,
+            score,
+            top_factors,
+            strengths,
+            gaps,
+            candidate_name,
+            opportunity_title,
         )
 
         return MatchExplanation(
@@ -171,11 +176,11 @@ class MatchExplainer:
     def _build_summary(
         self,
         score: float,
-        top_factors: List[Dict[str, Any]],
-        strengths: List[str],
-        gaps: List[str],
-        candidate_name: Optional[str],
-        opportunity_title: Optional[str],
+        top_factors: list[dict[str, Any]],
+        strengths: list[str],
+        gaps: list[str],
+        candidate_name: str | None,
+        opportunity_title: str | None,
     ) -> str:
         """Build the one-line summary sentence."""
         # Score quality descriptor
@@ -191,7 +196,7 @@ class MatchExplainer:
             quality = "limited"
 
         # Top factor description
-        top_label = top_factors[0]["label"] if top_factors else "overall profile"
+        top_factors[0]["label"] if top_factors else "overall profile"
 
         subject = candidate_name or "The candidate"
         target = opportunity_title or "this opportunity"
@@ -207,13 +212,13 @@ class MatchExplainer:
 
     def explain_batch(
         self,
-        features_list: List[FeatureVector],
-        scores: List[float],
-        breakdowns: Optional[List[Dict[str, Any]]] = None,
-    ) -> List[MatchExplanation]:
+        features_list: list[FeatureVector],
+        scores: list[float],
+        breakdowns: list[dict[str, Any]] | None = None,
+    ) -> list[MatchExplanation]:
         """Generate explanations for a batch of matches."""
         explanations = []
-        for i, (fv, score) in enumerate(zip(features_list, scores)):
+        for i, (fv, score) in enumerate(zip(features_list, scores, strict=False)):
             breakdown = breakdowns[i] if breakdowns else None
             explanations.append(self.explain(fv, score, breakdown))
         return explanations
@@ -251,11 +256,13 @@ class MatchExplainer:
                 lines.append(f"  • {g}")
             lines.append("")
 
-        lines.extend([
-            "Please log in to your dashboard to review the full details and accept or decline this offer.",
-            "",
-            "Best regards,",
-            "PM Internship Scheme Team",
-        ])
+        lines.extend(
+            [
+                "Please log in to your dashboard to review the full details and accept or decline this offer.",
+                "",
+                "Best regards,",
+                "PM Internship Scheme Team",
+            ]
+        )
 
         return "\n".join(lines)

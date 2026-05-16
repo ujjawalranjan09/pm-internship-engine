@@ -1,9 +1,8 @@
 """Notification domain module — multi-channel notification management."""
 
 import logging
-from typing import Optional
 
-from sqlalchemy import select, func
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.notification import Notification
@@ -27,9 +26,7 @@ class NotificationModule:
         status: str,
     ) -> Notification:
         """Send an allocation status notification."""
-        return await self._service.send_allocation_notification(
-            user_id, candidate_name, opportunity_title, status
-        )
+        return await self._service.send_allocation_notification(user_id, candidate_name, opportunity_title, status)
 
     async def send_match_notice(
         self,
@@ -38,9 +35,7 @@ class NotificationModule:
         num_matches: int,
     ) -> Notification:
         """Notify candidate about new matches."""
-        return await self._service.send_match_notification(
-            user_id, candidate_name, num_matches
-        )
+        return await self._service.send_match_notification(user_id, candidate_name, num_matches)
 
     async def send_welcome(self, user_id: int, name: str) -> Notification:
         """Send welcome notification to a new user."""
@@ -50,16 +45,12 @@ class NotificationModule:
         self,
         user_id: int,
         *,
-        notification_type: Optional[str] = None,
-        status: Optional[str] = None,
+        notification_type: str | None = None,
+        status: str | None = None,
         limit: int = 50,
     ) -> list[Notification]:
         """Get notifications for a user with optional filters."""
-        query = (
-            select(Notification)
-            .where(Notification.user_id == user_id)
-            .order_by(Notification.created_at.desc())
-        )
+        query = select(Notification).where(Notification.user_id == user_id).order_by(Notification.created_at.desc())
         if notification_type:
             query = query.where(Notification.type == notification_type)
         if status:
@@ -68,11 +59,9 @@ class NotificationModule:
         result = await self.db.execute(query)
         return list(result.scalars().all())
 
-    async def mark_read(self, notification_id: int) -> Optional[Notification]:
+    async def mark_read(self, notification_id: int) -> Notification | None:
         """Mark a notification as read."""
-        result = await self.db.execute(
-            select(Notification).where(Notification.id == notification_id)
-        )
+        result = await self.db.execute(select(Notification).where(Notification.id == notification_id))
         notification = result.scalar_one_or_none()
         if notification is None:
             return None

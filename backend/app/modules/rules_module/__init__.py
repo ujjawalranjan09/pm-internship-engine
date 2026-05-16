@@ -1,7 +1,7 @@
 """Rules domain module — eligibility criteria and business rules engine."""
 
 import logging
-from typing import Any, Optional
+from typing import Any
 
 from app.models.candidate import CandidateProfile
 from app.models.opportunity import Opportunity
@@ -21,9 +21,7 @@ class RulesModule:
         self._eligibility = EligibilityService()
         self._custom_rules: list[dict[str, Any]] = []
 
-    def is_eligible(
-        self, candidate: CandidateProfile, opportunity: Opportunity
-    ) -> bool:
+    def is_eligible(self, candidate: CandidateProfile, opportunity: Opportunity) -> bool:
         """Check if a candidate meets all hard eligibility criteria.
 
         Runs built-in eligibility checks plus any registered custom rules.
@@ -53,11 +51,13 @@ class RulesModule:
             rule_fn: Callable(candidate, opportunity) -> bool.
             description: What the rule checks.
         """
-        self._custom_rules.append({
-            "name": name,
-            "fn": rule_fn,
-            "description": description,
-        })
+        self._custom_rules.append(
+            {
+                "name": name,
+                "fn": rule_fn,
+                "description": description,
+            }
+        )
         logger.info("Registered custom rule: %s", name)
 
     def get_rules(self) -> list[dict[str, str]]:

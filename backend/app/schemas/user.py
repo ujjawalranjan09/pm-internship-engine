@@ -1,7 +1,6 @@
 """User-related Pydantic schemas."""
 
 from datetime import datetime
-from typing import Optional
 
 from pydantic import BaseModel, EmailStr, Field
 
@@ -37,9 +36,9 @@ class UserResponse(BaseModel):
 class UserUpdate(BaseModel):
     """Schema for updating user fields."""
 
-    email: Optional[EmailStr] = None
-    role: Optional[str] = Field(None, pattern="^(candidate|employer|admin)$")
-    is_active: Optional[bool] = None
+    email: EmailStr | None = None
+    role: str | None = Field(None, pattern="^(candidate|employer|admin)$")
+    is_active: bool | None = None
 
 
 class Token(BaseModel):

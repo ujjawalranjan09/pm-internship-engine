@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import numpy as np
 
@@ -30,16 +30,17 @@ logger = logging.getLogger(__name__)
 @dataclass
 class EvaluationResult:
     """Aggregated evaluation metrics."""
-    ndcg_at_k: Dict[int, float] = field(default_factory=dict)
+
+    ndcg_at_k: dict[int, float] = field(default_factory=dict)
     map_score: float = 0.0
     mrr: float = 0.0
-    precision_at_k: Dict[int, float] = field(default_factory=dict)
-    recall_at_k: Dict[int, float] = field(default_factory=dict)
-    hit_rate_at_k: Dict[int, float] = field(default_factory=dict)
+    precision_at_k: dict[int, float] = field(default_factory=dict)
+    recall_at_k: dict[int, float] = field(default_factory=dict)
+    hit_rate_at_k: dict[int, float] = field(default_factory=dict)
     num_queries: int = 0
     num_relevant_total: int = 0
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "ndcg_at_k": {f"ndcg@{k}": round(v, 4) for k, v in self.ndcg_at_k.items()},
             "map": round(self.map_score, 4),
@@ -54,10 +55,7 @@ class EvaluationResult:
     def summary(self) -> str:
         """One-line summary for logging."""
         ndcg10 = self.ndcg_at_k.get(10, 0)
-        return (
-            f"NDCG@10={ndcg10:.4f} MAP={self.map_score:.4f} "
-            f"MRR={self.mrr:.4f} queries={self.num_queries}"
-        )
+        return f"NDCG@10={ndcg10:.4f} MAP={self.map_score:.4f} MRR={self.mrr:.4f} queries={self.num_queries}"
 
 
 class RankingEvaluator:
@@ -76,14 +74,14 @@ class RankingEvaluator:
         )
     """
 
-    def __init__(self, default_k_values: Optional[List[int]] = None) -> None:
+    def __init__(self, default_k_values: list[int] | None = None) -> None:
         self._k_values = default_k_values or [1, 3, 5, 10, 20, 50]
 
     def evaluate(
         self,
-        ranked_lists: List[List[Tuple[str, float]]],
-        relevance_dicts: List[Dict[str, float]],
-        k_values: Optional[List[int]] = None,
+        ranked_lists: list[list[tuple[str, float]]],
+        relevance_dicts: list[dict[str, float]],
+        k_values: list[int] | None = None,
     ) -> EvaluationResult:
         """
         Evaluate ranking quality across multiple queries.
@@ -112,7 +110,7 @@ class RankingEvaluator:
         rr_sum = 0.0
         total_relevant = 0
 
-        for ranked, relevance in zip(ranked_lists, relevance_dicts):
+        for ranked, relevance in zip(ranked_lists, relevance_dicts, strict=False):
             ids = [item[0] for item in ranked]
             rels = np.array([relevance.get(cid, 0) for cid in ids])
 
@@ -153,9 +151,9 @@ class RankingEvaluator:
 
     def evaluate_binary(
         self,
-        ranked_lists: List[List[str]],
-        relevant_sets: List[set],
-        k_values: Optional[List[int]] = None,
+        ranked_lists: list[list[str]],
+        relevant_sets: list[set],
+        k_values: list[int] | None = None,
     ) -> EvaluationResult:
         """
         Simplified evaluation with binary relevance (relevant/not).
@@ -169,11 +167,10 @@ class RankingEvaluator:
         """
         relevance_dicts = [
             {cid: (1.0 if cid in rel_set else 0.0) for cid in ranked}
-            for ranked, rel_set in zip(ranked_lists, relevant_sets)
+            for ranked, rel_set in zip(ranked_lists, relevant_sets, strict=False)
         ]
         ranked_with_scores = [
-            [(cid, float(len(ranked) - i)) for i, cid in enumerate(ranked)]
-            for ranked in ranked_lists
+            [(cid, float(len(ranked) - i)) for i, cid in enumerate(ranked)] for ranked in ranked_lists
         ]
         return self.evaluate(ranked_with_scores, relevance_dicts, k_values)
 
@@ -226,7 +223,7 @@ class RankingEvaluator:
         precisions = []
         for k in range(len(relevances)):
             if relevances[k] > 0:
-                prec_at_k = np.sum(relevances[:k + 1] > 0) / (k + 1)
+                prec_at_k = np.sum(relevances[: k + 1] > 0) / (k + 1)
                 precisions.append(prec_at_k)
 
         return float(np.sum(precisions) / num_relevant) if precisions else 0.0
@@ -245,10 +242,10 @@ class RankingEvaluator:
 
     def cross_validate(
         self,
-        all_ranked: List[List[List[Tuple[str, float]]]],
-        all_relevance: List[List[Dict[str, float]]],
-        fold_names: Optional[List[str]] = None,
-    ) -> Dict[str, EvaluationResult]:
+        all_ranked: list[list[list[tuple[str, float]]]],
+        all_relevance: list[list[dict[str, float]]],
+        fold_names: list[str] | None = None,
+    ) -> dict[str, EvaluationResult]:
         """
         Evaluate across multiple folds (e.g. time-based splits).
 
@@ -263,7 +260,7 @@ class RankingEvaluator:
             fold_names = [f"fold_{i}" for i in range(len(all_ranked))]
 
         results = {}
-        for name, ranked, relevance in zip(fold_names, all_ranked, all_relevance):
+        for name, ranked, relevance in zip(fold_names, all_ranked, all_relevance, strict=False):
             results[name] = self.evaluate(ranked, relevance)
             logger.info("Fold %s: %s", name, results[name].summary())
 

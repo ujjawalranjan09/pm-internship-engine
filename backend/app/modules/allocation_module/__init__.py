@@ -1,10 +1,10 @@
 """Allocation domain module — cycle management and allocation runs."""
 
 import logging
-from datetime import datetime, timezone
-from typing import Any, Optional
+from datetime import UTC, datetime
+from typing import Any
 
-from sqlalchemy import select, func
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.allocation import Allocation, AllocationStatus
@@ -22,9 +22,7 @@ class AllocationModule:
         self.db = db
         self._service = AllocationService(db)
 
-    async def create_cycle(
-        self, name: str, config: Optional[dict[str, Any]] = None
-    ) -> AllocationCycle:
+    async def create_cycle(self, name: str, config: dict[str, Any] | None = None) -> AllocationCycle:
         """Create a new allocation cycle in draft state."""
         cycle = AllocationCycle(
             name=name,
@@ -47,18 +45,16 @@ class AllocationModule:
         if cycle is None:
             raise ValueError(f"Allocation cycle {cycle_id} not found")
         if cycle.status != CycleStatus.DRAFT:
-            raise ValueError(
-                f"Cycle {cycle_id} is in status '{cycle.status.value}', expected 'draft'"
-            )
+            raise ValueError(f"Cycle {cycle_id} is in status '{cycle.status.value}', expected 'draft'")
 
         cycle.status = CycleStatus.RUNNING
-        cycle.started_at = datetime.now(timezone.utc)
+        cycle.started_at = datetime.now(UTC)
         await self.db.flush()
 
         try:
             result = await self._service.run_allocation(cycle_id)
             cycle.status = CycleStatus.COMPLETED
-            cycle.completed_at = datetime.now(timezone.utc)
+            cycle.completed_at = datetime.now(UTC)
             await self.db.flush()
             logger.info("Allocation cycle %d completed: %s", cycle_id, result)
             return result
@@ -67,16 +63,12 @@ class AllocationModule:
             await self.db.flush()
             raise
 
-    async def get_cycle(self, cycle_id: int) -> Optional[AllocationCycle]:
+    async def get_cycle(self, cycle_id: int) -> AllocationCycle | None:
         """Fetch an allocation cycle by ID."""
-        result = await self.db.execute(
-            select(AllocationCycle).where(AllocationCycle.id == cycle_id)
-        )
+        result = await self.db.execute(select(AllocationCycle).where(AllocationCycle.id == cycle_id))
         return result.scalar_one_or_none()
 
-    async def list_cycles(
-        self, *, status: Optional[CycleStatus] = None, limit: int = 20
-    ) -> list[AllocationCycle]:
+    async def list_cycles(self, *, status: CycleStatus | None = None, limit: int = 20) -> list[AllocationCycle]:
         """List allocation cycles, newest first."""
         query = select(AllocationCycle)
         if status:
@@ -85,25 +77,17 @@ class AllocationModule:
         result = await self.db.execute(query)
         return list(result.scalars().all())
 
-    async def get_cycle_allocations(
-        self, cycle_id: int
-    ) -> list[Allocation]:
+    async def get_cycle_allocations(self, cycle_id: int) -> list[Allocation]:
         """Get all allocations for a cycle."""
         result = await self.db.execute(
-            select(Allocation)
-            .where(Allocation.allocation_cycle_id == cycle_id)
-            .order_by(Allocation.created_at.desc())
+            select(Allocation).where(Allocation.allocation_cycle_id == cycle_id).order_by(Allocation.created_at.desc())
         )
         return list(result.scalars().all())
 
-    async def get_cycle_waitlist(
-        self, cycle_id: int
-    ) -> list[WaitlistEntry]:
+    async def get_cycle_waitlist(self, cycle_id: int) -> list[WaitlistEntry]:
         """Get the waitlist for a cycle, ordered by position."""
         result = await self.db.execute(
-            select(WaitlistEntry)
-            .where(WaitlistEntry.allocation_cycle_id == cycle_id)
-            .order_by(WaitlistEntry.position)
+            select(WaitlistEntry).where(WaitlistEntry.allocation_cycle_id == cycle_id).order_by(WaitlistEntry.position)
         )
         return list(result.scalars().all())
 
@@ -112,20 +96,14 @@ class AllocationModule:
         alloc_result = await self.db.execute(
             select(
                 func.count(Allocation.id).label("total"),
-                func.count()
-                .filter(Allocation.status == AllocationStatus.CONFIRMED)
-                .label("confirmed"),
-                func.count()
-                .filter(Allocation.status == AllocationStatus.DECLINED)
-                .label("declined"),
+                func.count().filter(Allocation.status == AllocationStatus.CONFIRMED).label("confirmed"),
+                func.count().filter(Allocation.status == AllocationStatus.DECLINED).label("declined"),
             ).where(Allocation.allocation_cycle_id == cycle_id)
         )
         row = alloc_result.one()
 
         wl_result = await self.db.execute(
-            select(func.count(WaitlistEntry.id)).where(
-                WaitlistEntry.allocation_cycle_id == cycle_id
-            )
+            select(func.count(WaitlistEntry.id)).where(WaitlistEntry.allocation_cycle_id == cycle_id)
         )
         waitlisted = wl_result.scalar() or 0
 
@@ -142,12 +120,10 @@ class AllocationModule:
         allocation_id: int,
         new_status: AllocationStatus,
         *,
-        explanation: Optional[str] = None,
-    ) -> Optional[Allocation]:
+        explanation: str | None = None,
+    ) -> Allocation | None:
         """Update the status of a single allocation."""
-        result = await self.db.execute(
-            select(Allocation).where(Allocation.id == allocation_id)
-        )
+        result = await self.db.execute(select(Allocation).where(Allocation.id == allocation_id))
         allocation = result.scalar_one_or_none()
         if allocation is None:
             return None
@@ -157,7 +133,5 @@ class AllocationModule:
             allocation.explanation = explanation
         await self.db.flush()
         await self.db.refresh(allocation)
-        logger.info(
-            "Allocation %d status -> %s", allocation_id, new_status.value
-        )
+        logger.info("Allocation %d status -> %s", allocation_id, new_status.value)
         return allocation

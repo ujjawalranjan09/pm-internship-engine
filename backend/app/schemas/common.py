@@ -1,14 +1,14 @@
 """Common Pydantic schemas shared across the application."""
 
 import enum
-from typing import Generic, TypeVar
+from typing import TypeVar
 
 from pydantic import BaseModel
 
 T = TypeVar("T")
 
 
-class StatusEnum(str, enum.Enum):
+class StatusEnum(enum.StrEnum):
     """Generic status enum for API responses."""
 
     ACTIVE = "active"
@@ -19,7 +19,7 @@ class StatusEnum(str, enum.Enum):
     CANCELLED = "cancelled"
 
 
-class PaginatedResponse(BaseModel, Generic[T]):
+class PaginatedResponse[T](BaseModel):
     """Generic paginated response wrapper."""
 
     items: list[T]

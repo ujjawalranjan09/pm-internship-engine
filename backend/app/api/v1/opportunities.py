@@ -88,9 +88,7 @@ async def get_opportunity(
     db: AsyncSession = Depends(get_async_session),
 ):
     """Get an opportunity by ID."""
-    result = await db.execute(
-        select(Opportunity).where(Opportunity.id == opportunity_id)
-    )
+    result = await db.execute(select(Opportunity).where(Opportunity.id == opportunity_id))
     opportunity = result.scalar_one_or_none()
     if opportunity is None:
         raise NotFoundException(f"Opportunity {opportunity_id} not found")
@@ -105,9 +103,7 @@ async def update_opportunity(
     db: AsyncSession = Depends(get_async_session),
 ):
     """Update an opportunity (owner or admin only)."""
-    result = await db.execute(
-        select(Opportunity).where(Opportunity.id == opportunity_id)
-    )
+    result = await db.execute(select(Opportunity).where(Opportunity.id == opportunity_id))
     opportunity = result.scalar_one_or_none()
     if opportunity is None:
         raise NotFoundException(f"Opportunity {opportunity_id} not found")
@@ -131,9 +127,7 @@ async def deactivate_opportunity(
     db: AsyncSession = Depends(get_async_session),
 ):
     """Soft-delete an opportunity by setting is_active=False."""
-    result = await db.execute(
-        select(Opportunity).where(Opportunity.id == opportunity_id)
-    )
+    result = await db.execute(select(Opportunity).where(Opportunity.id == opportunity_id))
     opportunity = result.scalar_one_or_none()
     if opportunity is None:
         raise NotFoundException(f"Opportunity {opportunity_id} not found")

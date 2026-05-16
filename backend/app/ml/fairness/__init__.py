@@ -13,7 +13,7 @@ Submodules:
 """
 
 from .fairness_metrics import FairnessMetrics
-from .policy_engine import PolicyEngine
 from .guardrails import FairnessGuardrails
+from .policy_engine import PolicyEngine
 
 __all__ = ["FairnessMetrics", "PolicyEngine", "FairnessGuardrails"]

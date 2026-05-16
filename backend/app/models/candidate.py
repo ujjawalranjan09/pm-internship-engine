@@ -26,16 +26,12 @@ class CandidateProfile(BaseModel):
     is_rural: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     resume_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     profile_completion_score: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
-    mobility_preferences: Mapped[dict | None] = mapped_column(
-        JSONB, nullable=True, default=dict
-    )
+    mobility_preferences: Mapped[dict | None] = mapped_column(JSONB, nullable=True, default=dict)
 
     # Relationships
     user = relationship("User", back_populates="candidate_profile")
     matches = relationship("Match", back_populates="candidate", foreign_keys="Match.candidate_id")
-    allocations = relationship(
-        "Allocation", back_populates="candidate", foreign_keys="Allocation.candidate_id"
-    )
+    allocations = relationship("Allocation", back_populates="candidate", foreign_keys="Allocation.candidate_id")
 
     def __repr__(self) -> str:
         return f"<CandidateProfile(id={self.id}, name={self.full_name!r})>"

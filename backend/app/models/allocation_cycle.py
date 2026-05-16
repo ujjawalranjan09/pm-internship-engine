@@ -3,14 +3,14 @@
 import enum
 from datetime import datetime
 
-from sqlalchemy import DateTime, Enum, String, Text
+from sqlalchemy import DateTime, Enum, String
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import BaseModel
 
 
-class CycleStatus(str, enum.Enum):
+class CycleStatus(enum.StrEnum):
     """Possible allocation cycle statuses."""
 
     DRAFT = "draft"

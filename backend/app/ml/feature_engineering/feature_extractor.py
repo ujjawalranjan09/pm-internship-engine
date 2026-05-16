@@ -22,7 +22,7 @@ from __future__ import annotations
 import logging
 import math
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import numpy as np
 
@@ -40,8 +40,8 @@ class FeatureVector:
     """
 
     # ── Skill features ────────────────────────────────────────────
-    exact_skill_overlap: float = 0.0       # Jaccard-like overlap ratio
-    weighted_skill_similarity: float = 0.0 # Embedding-based similarity
+    exact_skill_overlap: float = 0.0  # Jaccard-like overlap ratio
+    weighted_skill_similarity: float = 0.0  # Embedding-based similarity
 
     # ── Qualification features ────────────────────────────────────
     qualification_compatibility: float = 0.0
@@ -71,12 +71,12 @@ class FeatureVector:
     text_keyword_overlap: float = 0.0
 
     # ── Metadata ──────────────────────────────────────────────────
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
-    _FEATURE_NAMES: Optional[List[str]] = None
+    _FEATURE_NAMES: list[str] | None = None
 
     @classmethod
-    def feature_names(cls) -> List[str]:
+    def feature_names(cls) -> list[str]:
         """Return ordered list of feature names matching ``to_array`` order."""
         if cls._FEATURE_NAMES is None:
             cls._FEATURE_NAMES = [
@@ -98,35 +98,39 @@ class FeatureVector:
 
     def to_array(self) -> np.ndarray:
         """Convert to a 1-D numpy array in the canonical feature order."""
-        return np.array([
-            self.exact_skill_overlap,
-            self.weighted_skill_similarity,
-            self.qualification_compatibility,
-            self.distance_mobility,
-            self.sector_affinity,
-            self.profile_completeness,
-            self.competitiveness_percentile,
-            self.past_participation,
-            self.district_representation,
-            self.education_level_match,
-            self.stipend_alignment,
-            self.semantic_similarity,
-            self.text_keyword_overlap,
-        ], dtype=np.float64)
+        return np.array(
+            [
+                self.exact_skill_overlap,
+                self.weighted_skill_similarity,
+                self.qualification_compatibility,
+                self.distance_mobility,
+                self.sector_affinity,
+                self.profile_completeness,
+                self.competitiveness_percentile,
+                self.past_participation,
+                self.district_representation,
+                self.education_level_match,
+                self.stipend_alignment,
+                self.semantic_similarity,
+                self.text_keyword_overlap,
+            ],
+            dtype=np.float64,
+        )
 
     @classmethod
-    def from_array(cls, arr: np.ndarray, metadata: Optional[Dict[str, Any]] = None) -> "FeatureVector":
+    def from_array(cls, arr: np.ndarray, metadata: dict[str, Any] | None = None) -> FeatureVector:
         """Reconstruct a FeatureVector from a numpy array."""
         names = cls.feature_names()
         if len(arr) != len(names):
             raise ValueError(f"Expected {len(names)} features, got {len(arr)}")
-        kwargs: Dict[str, Any] = dict(zip(names, arr.tolist()))
+        kwargs: dict[str, Any] = dict(zip(names, arr.tolist(), strict=False))
         if metadata:
             kwargs["metadata"] = metadata
         return cls(**kwargs)
 
 
 # ── Skill-overlap helpers ──────────────────────────────────────────
+
 
 def _jaccard(a: set, b: set) -> float:
     """Jaccard similarity between two sets."""
@@ -138,9 +142,9 @@ def _jaccard(a: set, b: set) -> float:
 
 
 def _weighted_overlap(
-    candidate_skills: List[str],
-    required_skills: List[str],
-    skill_weights: Optional[Dict[str, float]] = None,
+    candidate_skills: list[str],
+    required_skills: list[str],
+    skill_weights: dict[str, float] | None = None,
 ) -> float:
     """
     Weighted skill overlap that gives partial credit for related skills.
@@ -171,7 +175,7 @@ def _weighted_overlap(
 # ── Distance / location helpers ───────────────────────────────────
 
 # Approximate bounding-box centres for Indian states (lat, lon).
-_STATE_CENTRES: Dict[str, Tuple[float, float]] = {
+_STATE_CENTRES: dict[str, tuple[float, float]] = {
     "andhra pradesh": (15.9129, 79.7400),
     "arunachal pradesh": (28.2180, 94.7278),
     "assam": (26.2006, 92.9376),
@@ -208,23 +212,18 @@ _STATE_CENTRES: Dict[str, Tuple[float, float]] = {
 
 def _haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     """Haversine distance in kilometres."""
-    R = 6371.0
+    EARTH_RADIUS_KM = 6371.0  # noqa: N806
     dlat = math.radians(lat2 - lat1)
     dlon = math.radians(lon2 - lon1)
-    a = (
-        math.sin(dlat / 2) ** 2
-        + math.cos(math.radians(lat1))
-        * math.cos(math.radians(lat2))
-        * math.sin(dlon / 2) ** 2
-    )
-    return R * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+    a = math.sin(dlat / 2) ** 2 + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(dlon / 2) ** 2
+    return EARTH_RADIUS_KM * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
 
 
 def _location_score(
-    candidate_state: Optional[str],
-    opportunity_state: Optional[str],
+    candidate_state: str | None,
+    opportunity_state: str | None,
     is_rural: bool,
-    mobility_prefs: Optional[Dict[str, Any]],
+    mobility_prefs: dict[str, Any] | None,
 ) -> float:
     """
     Compute a location compatibility score in [0, 1].
@@ -247,9 +246,8 @@ def _location_score(
     distance_score = math.exp(-dist_km / 2000.0)
 
     # Mobility willingness boost
-    willing_to_relocate = True
     if mobility_prefs:
-        willing_to_relocate = mobility_prefs.get("willing_to_relocate", True)
+        mobility_prefs.get("willing_to_relocate", True)
         max_distance = mobility_prefs.get("max_distance_km")
         if max_distance and dist_km > max_distance:
             distance_score *= 0.3
@@ -287,9 +285,9 @@ _EDUCATION_LEVELS = {
 
 
 def _education_match_score(
-    candidate_education: Optional[Dict[str, Any]],
-    eligibility_criteria: Optional[Dict[str, Any]],
-) -> Tuple[float, float]:
+    candidate_education: dict[str, Any] | None,
+    eligibility_criteria: dict[str, Any] | None,
+) -> tuple[float, float]:
     """
     Return (qualification_compatibility, education_level_match).
 
@@ -315,16 +313,15 @@ def _education_match_score(
     # Field-of-study bonus
     cand_field = candidate_education.get("field", "").lower()
     req_fields = eligibility_criteria.get("preferred_fields", [])
-    if req_fields and cand_field:
-        if any(cand_field in f.lower() or f.lower() in cand_field for f in req_fields):
-            qual_compat = min(1.0, qual_compat + 0.15)
+    if req_fields and cand_field and any(cand_field in f.lower() or f.lower() in cand_field for f in req_fields):
+        qual_compat = min(1.0, qual_compat + 0.15)
 
     return qual_compat, level_match
 
 
 # ── Sector affinity ────────────────────────────────────────────────
 
-_SECTOR_KEYWORDS: Dict[str, List[str]] = {
+_SECTOR_KEYWORDS: dict[str, list[str]] = {
     "technology": ["software", "it", "tech", "digital", "data", "ai", "ml", "cloud"],
     "finance": ["banking", "finance", "fintech", "accounting", "insurance"],
     "healthcare": ["health", "medical", "pharma", "hospital", "clinical"],
@@ -339,9 +336,9 @@ _SECTOR_KEYWORDS: Dict[str, List[str]] = {
 
 
 def _sector_affinity_score(
-    candidate_skills: List[str],
-    candidate_education: Optional[Dict[str, Any]],
-    opportunity_sector: Optional[str],
+    candidate_skills: list[str],
+    candidate_education: dict[str, Any] | None,
+    opportunity_sector: str | None,
 ) -> float:
     """Score how well the candidate's background aligns with the sector."""
     if not opportunity_sector:
@@ -376,14 +373,14 @@ class FeatureExtractor:
         fv = extractor.extract(candidate_dict, opportunity_dict)
     """
 
-    def __init__(self, skill_weights: Optional[Dict[str, float]] = None) -> None:
+    def __init__(self, skill_weights: dict[str, float] | None = None) -> None:
         self._skill_weights = skill_weights
 
     def extract(
         self,
-        candidate: Dict[str, Any],
-        opportunity: Dict[str, Any],
-        context: Optional[Dict[str, Any]] = None,
+        candidate: dict[str, Any],
+        opportunity: dict[str, Any],
+        context: dict[str, Any] | None = None,
     ) -> FeatureVector:
         """
         Build a FeatureVector from raw candidate and opportunity dicts.
@@ -423,9 +420,7 @@ class FeatureExtractor:
         )
 
         # ── Sector affinity ───────────────────────────────────────
-        sector_score = _sector_affinity_score(
-            cand_skills, cand_edu, opportunity.get("sector")
-        )
+        sector_score = _sector_affinity_score(cand_skills, cand_edu, opportunity.get("sector"))
 
         # ── Profile completeness ──────────────────────────────────
         profile_score = float(candidate.get("profile_completion_score", 0.5))
@@ -471,9 +466,9 @@ class FeatureExtractor:
 
     def extract_batch(
         self,
-        candidates: List[Dict[str, Any]],
-        opportunities: List[Dict[str, Any]],
-        context: Optional[Dict[str, Any]] = None,
+        candidates: list[dict[str, Any]],
+        opportunities: list[dict[str, Any]],
+        context: dict[str, Any] | None = None,
     ) -> np.ndarray:
         """
         Extract features for all candidate × opportunity pairs.

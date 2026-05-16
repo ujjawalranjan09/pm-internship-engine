@@ -1,9 +1,9 @@
 """Analytics domain module — aggregate reporting and dashboards."""
 
 import logging
-from typing import Any, Optional
+from typing import Any
 
-from sqlalchemy import select, func
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.allocation import Allocation, AllocationStatus
@@ -42,7 +42,7 @@ class AnalyticsModule:
             "total_cycles": cycles,
         }
 
-    async def allocation_funnel(self, cycle_id: Optional[int] = None) -> dict[str, Any]:
+    async def allocation_funnel(self, cycle_id: int | None = None) -> dict[str, Any]:
         """Return the allocation funnel: candidates → matched → allocated → confirmed."""
         # Total candidates
         total_candidates = await self._count(CandidateProfile)
@@ -63,9 +63,7 @@ class AnalyticsModule:
         allocated = alloc_result.scalar() or 0
 
         # Confirmed
-        confirm_query = select(func.count(Allocation.id)).where(
-            Allocation.status == AllocationStatus.CONFIRMED
-        )
+        confirm_query = select(func.count(Allocation.id)).where(Allocation.status == AllocationStatus.CONFIRMED)
         if cycle_id:
             confirm_query = confirm_query.where(Allocation.allocation_cycle_id == cycle_id)
         confirm_result = await self.db.execute(confirm_query)
@@ -121,11 +119,7 @@ class AnalyticsModule:
 
     async def cycle_comparison(self) -> list[dict[str, Any]]:
         """Compare metrics across all completed cycles."""
-        result = await self.db.execute(
-            select(AllocationCycle).where(
-                AllocationCycle.status == CycleStatus.COMPLETED
-            )
-        )
+        result = await self.db.execute(select(AllocationCycle).where(AllocationCycle.status == CycleStatus.COMPLETED))
         cycles = result.scalars().all()
 
         comparisons = []
@@ -133,20 +127,20 @@ class AnalyticsModule:
             stats_result = await self.db.execute(
                 select(
                     func.count(Allocation.id).label("total"),
-                    func.count()
-                    .filter(Allocation.status == AllocationStatus.CONFIRMED)
-                    .label("confirmed"),
+                    func.count().filter(Allocation.status == AllocationStatus.CONFIRMED).label("confirmed"),
                 ).where(Allocation.allocation_cycle_id == cycle.id)
             )
             row = stats_result.one()
-            comparisons.append({
-                "cycle_id": cycle.id,
-                "name": cycle.name,
-                "total_allocated": row.total or 0,
-                "total_confirmed": row.confirmed or 0,
-                "started_at": cycle.started_at.isoformat() if cycle.started_at else None,
-                "completed_at": cycle.completed_at.isoformat() if cycle.completed_at else None,
-            })
+            comparisons.append(
+                {
+                    "cycle_id": cycle.id,
+                    "name": cycle.name,
+                    "total_allocated": row.total or 0,
+                    "total_confirmed": row.confirmed or 0,
+                    "started_at": cycle.started_at.isoformat() if cycle.started_at else None,
+                    "completed_at": cycle.completed_at.isoformat() if cycle.completed_at else None,
+                }
+            )
 
         return comparisons
 

@@ -1,7 +1,7 @@
 """Constrained allocation service using OR-Tools linear programming."""
 
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from ortools.linear_solver import pywraplp
@@ -9,7 +9,6 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.allocation import Allocation, AllocationStatus
-from app.models.allocation_cycle import AllocationCycle
 from app.models.candidate import CandidateProfile
 from app.models.match import Match
 from app.models.opportunity import Opportunity
@@ -33,11 +32,7 @@ class AllocationService:
         4. Persist allocations and waitlist entries
         """
         # Load matches
-        matches_result = await self.db.execute(
-            select(Match)
-            .where(Match.score >= 0.1)
-            .order_by(Match.score.desc())
-        )
+        matches_result = await self.db.execute(select(Match).where(Match.score >= 0.1).order_by(Match.score.desc()))
         matches = matches_result.scalars().all()
 
         if not matches:
@@ -46,16 +41,12 @@ class AllocationService:
 
         # Load opportunities for capacity
         opp_ids = list(set(m.opportunity_id for m in matches))
-        opp_result = await self.db.execute(
-            select(Opportunity).where(Opportunity.id.in_(opp_ids))
-        )
+        opp_result = await self.db.execute(select(Opportunity).where(Opportunity.id.in_(opp_ids)))
         opportunities = {o.id: o for o in opp_result.scalars().all()}
 
         # Load candidates
         cand_ids = list(set(m.candidate_id for m in matches))
-        cand_result = await self.db.execute(
-            select(CandidateProfile).where(CandidateProfile.id.in_(cand_ids))
-        )
+        cand_result = await self.db.execute(select(CandidateProfile).where(CandidateProfile.id.in_(cand_ids)))
         candidates = {c.id: c for c in cand_result.scalars().all()}
 
         # Build and solve the optimization model
@@ -74,14 +65,14 @@ class AllocationService:
                 allocation_cycle_id=cycle_id,
                 status=AllocationStatus.PENDING,
                 explanation=explanation,
-                allocated_at=datetime.now(timezone.utc),
+                allocated_at=datetime.now(UTC),
             )
             self.db.add(allocation)
             allocated_count += 1
 
         # Persist waitlist
         waitlist_count = 0
-        for position, (candidate_id, opportunity_id, match_id) in enumerate(waitlisted, start=1):
+        for position, (candidate_id, opportunity_id, _match_id) in enumerate(waitlisted, start=1):
             entry = WaitlistEntry(
                 candidate_id=candidate_id,
                 opportunity_id=opportunity_id,
@@ -138,7 +129,7 @@ class AllocationService:
         for match in matches:
             candidate_matches.setdefault(match.candidate_id, []).append(match.id)
 
-        for candidate_id, match_ids in candidate_matches.items():
+        for _candidate_id, match_ids in candidate_matches.items():
             solver.Add(sum(x[mid] for mid in match_ids) <= 1)
 
         # Constraint 2: Opportunity capacity limits

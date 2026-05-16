@@ -1,7 +1,7 @@
 """Opportunity Pydantic schemas."""
 
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -11,34 +11,34 @@ class OpportunityCreate(BaseModel):
 
     title: str = Field(..., min_length=1, max_length=255)
     description: str = Field(..., min_length=10)
-    sector: Optional[str] = None
-    required_skills: Optional[list[str]] = None
-    location: Optional[str] = None
-    state: Optional[str] = None
-    district: Optional[str] = None
-    work_mode: Optional[str] = Field(None, pattern="^(remote|hybrid|onsite)$")
+    sector: str | None = None
+    required_skills: list[str] | None = None
+    location: str | None = None
+    state: str | None = None
+    district: str | None = None
+    work_mode: str | None = Field(None, pattern="^(remote|hybrid|onsite)$")
     capacity: int = Field(default=1, ge=1)
-    stipend: Optional[float] = Field(None, ge=0)
-    duration_months: Optional[int] = Field(None, ge=1)
-    eligibility_criteria: Optional[dict[str, Any]] = None
+    stipend: float | None = Field(None, ge=0)
+    duration_months: int | None = Field(None, ge=1)
+    eligibility_criteria: dict[str, Any] | None = None
 
 
 class OpportunityUpdate(BaseModel):
     """Schema for updating an opportunity."""
 
-    title: Optional[str] = Field(None, min_length=1, max_length=255)
-    description: Optional[str] = Field(None, min_length=10)
-    sector: Optional[str] = None
-    required_skills: Optional[list[str]] = None
-    location: Optional[str] = None
-    state: Optional[str] = None
-    district: Optional[str] = None
-    work_mode: Optional[str] = Field(None, pattern="^(remote|hybrid|onsite)$")
-    capacity: Optional[int] = Field(None, ge=1)
-    stipend: Optional[float] = Field(None, ge=0)
-    duration_months: Optional[int] = Field(None, ge=1)
-    eligibility_criteria: Optional[dict[str, Any]] = None
-    is_active: Optional[bool] = None
+    title: str | None = Field(None, min_length=1, max_length=255)
+    description: str | None = Field(None, min_length=10)
+    sector: str | None = None
+    required_skills: list[str] | None = None
+    location: str | None = None
+    state: str | None = None
+    district: str | None = None
+    work_mode: str | None = Field(None, pattern="^(remote|hybrid|onsite)$")
+    capacity: int | None = Field(None, ge=1)
+    stipend: float | None = Field(None, ge=0)
+    duration_months: int | None = Field(None, ge=1)
+    eligibility_criteria: dict[str, Any] | None = None
+    is_active: bool | None = None
 
 
 class OpportunityResponse(BaseModel):
@@ -48,16 +48,16 @@ class OpportunityResponse(BaseModel):
     employer_id: int
     title: str
     description: str
-    sector: Optional[str] = None
-    required_skills: Optional[list[str]] = None
-    location: Optional[str] = None
-    state: Optional[str] = None
-    district: Optional[str] = None
-    work_mode: Optional[str] = None
+    sector: str | None = None
+    required_skills: list[str] | None = None
+    location: str | None = None
+    state: str | None = None
+    district: str | None = None
+    work_mode: str | None = None
     capacity: int = 1
-    stipend: Optional[float] = None
-    duration_months: Optional[int] = None
-    eligibility_criteria: Optional[dict[str, Any]] = None
+    stipend: float | None = None
+    duration_months: int | None = None
+    eligibility_criteria: dict[str, Any] | None = None
     is_active: bool = True
     created_at: datetime
     updated_at: datetime

@@ -37,9 +37,9 @@ async def get_analytics_overview(
         )
 
     candidates_count = (await db.execute(select(func.count()).select_from(CandidateProfile))).scalar() or 0
-    opportunities_count = (await db.execute(
-        select(func.count()).select_from(Opportunity).where(Opportunity.is_active == True)
-    )).scalar() or 0
+    opportunities_count = (
+        await db.execute(select(func.count()).select_from(Opportunity).where(Opportunity.is_active))
+    ).scalar() or 0
     matches_count = (await db.execute(select(func.count()).select_from(Match))).scalar() or 0
     users_count = (await db.execute(select(func.count()).select_from(User))).scalar() or 0
 
@@ -93,10 +93,7 @@ async def get_matching_analytics(
     )
     stats = score_distribution.one()
 
-    status_dist = await db.execute(
-        select(Match.status, func.count())
-        .group_by(Match.status)
-    )
+    status_dist = await db.execute(select(Match.status, func.count()).group_by(Match.status))
     status_distribution = {row[0]: row[1] for row in status_dist}
 
     return {

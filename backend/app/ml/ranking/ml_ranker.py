@@ -21,8 +21,7 @@ import logging
 import os
 import time
 from dataclasses import dataclass, field
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import numpy as np
 
@@ -38,9 +37,10 @@ except ImportError:
 @dataclass
 class TrainingConfig:
     """Hyperparameters for LightGBM ranker training."""
+
     objective: str = "lambdarank"
     metric: str = "ndcg"
-    ndcg_eval_at: List[int] = field(default_factory=lambda: [5, 10, 20])
+    ndcg_eval_at: list[int] = field(default_factory=lambda: [5, 10, 20])
     num_leaves: int = 63
     max_depth: int = -1
     learning_rate: float = 0.05
@@ -58,10 +58,11 @@ class TrainingConfig:
 @dataclass
 class RankerPrediction:
     """Result of ranking with the ML model."""
+
     candidate_id: str
     opportunity_id: str
     score: float
-    feature_contributions: Dict[str, float] = field(default_factory=dict)
+    feature_contributions: dict[str, float] = field(default_factory=dict)
     rank: int = 0
 
 
@@ -76,12 +77,12 @@ class MLRanker:
 
     def __init__(
         self,
-        config: Optional[TrainingConfig] = None,
-        model_path: Optional[str] = None,
+        config: TrainingConfig | None = None,
+        model_path: str | None = None,
     ) -> None:
         self.config = config or TrainingConfig()
-        self._model: Optional[Any] = None
-        self._feature_names: Optional[List[str]] = None
+        self._model: Any | None = None
+        self._feature_names: list[str] | None = None
         self._model_path = model_path
 
         if model_path and os.path.exists(model_path):
@@ -94,14 +95,14 @@ class MLRanker:
 
     def train(
         self,
-        X: np.ndarray,
+        X: np.ndarray,  # noqa: N803
         y: np.ndarray,
         query_groups: np.ndarray,
-        feature_names: Optional[List[str]] = None,
-        eval_X: Optional[np.ndarray] = None,
-        eval_y: Optional[np.ndarray] = None,
-        eval_query_groups: Optional[np.ndarray] = None,
-    ) -> Dict[str, Any]:
+        feature_names: list[str] | None = None,
+        eval_X: np.ndarray | None = None,  # noqa: N803
+        eval_y: np.ndarray | None = None,
+        eval_query_groups: np.ndarray | None = None,
+    ) -> dict[str, Any]:
         """
         Train the LightGBM ranker.
 
@@ -140,7 +141,9 @@ class MLRanker:
         }
 
         train_data = lgb.Dataset(
-            X, label=y, group=query_groups.tolist(),
+            X,
+            label=y,
+            group=query_groups.tolist(),
             feature_name=feature_names or "auto",
         )
 
@@ -149,7 +152,9 @@ class MLRanker:
 
         if eval_X is not None and eval_y is not None and eval_query_groups is not None:
             eval_data = lgb.Dataset(
-                eval_X, label=eval_y, group=eval_query_groups.tolist(),
+                eval_X,
+                label=eval_y,
+                group=eval_query_groups.tolist(),
                 feature_name=feature_names or "auto",
                 reference=train_data,
             )
@@ -175,7 +180,9 @@ class MLRanker:
         elapsed = time.time() - start
         metrics = {
             "training_time_seconds": elapsed,
-            "best_iteration": self._model.best_iteration if hasattr(self._model, "best_iteration") else self.config.n_estimators,
+            "best_iteration": self._model.best_iteration
+            if hasattr(self._model, "best_iteration")
+            else self.config.n_estimators,
             "num_samples": int(X.shape[0]),
             "num_features": int(X.shape[1]),
         }
@@ -183,18 +190,18 @@ class MLRanker:
         # Feature importance
         importance = self._model.feature_importance(importance_type="gain")
         names = feature_names or [f"f{i}" for i in range(X.shape[1])]
-        metrics["feature_importance"] = dict(zip(names, importance.tolist()))
+        metrics["feature_importance"] = dict(zip(names, importance.tolist(), strict=False))
 
         logger.info("Training complete in %.1fs. Best iteration: %s", elapsed, metrics["best_iteration"])
         return metrics
 
     def predict(
         self,
-        X: np.ndarray,
-        candidate_ids: List[str],
+        X: np.ndarray,  # noqa: N803
+        candidate_ids: list[str],
         opportunity_id: str,
-        top_k: Optional[int] = None,
-    ) -> List[RankerPrediction]:
+        top_k: int | None = None,
+    ) -> list[RankerPrediction]:
         """
         Score and rank candidates for an opportunity.
 
@@ -214,28 +221,27 @@ class MLRanker:
 
         # Normalise scores to [0, 1] via min-max
         min_s, max_s = raw_scores.min(), raw_scores.max()
-        if max_s > min_s:
-            scores = (raw_scores - min_s) / (max_s - min_s)
-        else:
-            scores = np.full_like(raw_scores, 0.5)
+        scores = (raw_scores - min_s) / (max_s - min_s) if max_s > min_s else np.full_like(raw_scores, 0.5)
 
         predictions = []
-        for i, (cid, score) in enumerate(zip(candidate_ids, scores)):
+        for i, (cid, score) in enumerate(zip(candidate_ids, scores, strict=False)):
             contributions = {}
             if self._feature_names:
                 # Approximate per-feature contribution using feature importance × value
                 importance = self._model.feature_importance(importance_type="gain")
                 total_imp = importance.sum()
                 if total_imp > 0:
-                    for fname, imp, val in zip(self._feature_names, importance, X[i]):
+                    for fname, imp, val in zip(self._feature_names, importance, X[i], strict=False):
                         contributions[fname] = float(imp / total_imp * val)
 
-            predictions.append(RankerPrediction(
-                candidate_id=cid,
-                opportunity_id=opportunity_id,
-                score=float(score),
-                feature_contributions=contributions,
-            ))
+            predictions.append(
+                RankerPrediction(
+                    candidate_id=cid,
+                    opportunity_id=opportunity_id,
+                    score=float(score),
+                    feature_contributions=contributions,
+                )
+            )
 
         predictions.sort(key=lambda p: -p.score)
         for i, pred in enumerate(predictions):
@@ -246,16 +252,16 @@ class MLRanker:
 
         return predictions
 
-    def get_feature_importance(self, importance_type: str = "gain") -> Dict[str, float]:
+    def get_feature_importance(self, importance_type: str = "gain") -> dict[str, float]:
         """Return feature importance as a dict."""
         if self._model is None:
             return {}
 
         imp = self._model.feature_importance(importance_type=importance_type)
         names = self._feature_names or [f"f{i}" for i in range(len(imp))]
-        return dict(zip(names, imp.tolist()))
+        return dict(zip(names, imp.tolist(), strict=False))
 
-    def save(self, path: Optional[str] = None) -> str:
+    def save(self, path: str | None = None) -> str:
         """Save the model to disk."""
         save_path = path or self._model_path
         if not save_path:

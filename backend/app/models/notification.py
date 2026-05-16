@@ -16,9 +16,7 @@ class Notification(BaseModel):
     user_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    type: Mapped[str] = mapped_column(
-        String(50), nullable=False, index=True
-    )  # email, sms, in_app
+    type: Mapped[str] = mapped_column(String(50), nullable=False, index=True)  # email, sms, in_app
     subject: Mapped[str | None] = mapped_column(String(255), nullable=True)
     body: Mapped[str] = mapped_column(Text, nullable=False)
     status: Mapped[str] = mapped_column(

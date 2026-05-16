@@ -1,7 +1,7 @@
 """Shared test fixtures and configuration."""
 
 import asyncio
-from typing import AsyncGenerator, Generator
+from collections.abc import AsyncGenerator, Generator
 
 import pytest
 import pytest_asyncio
@@ -9,7 +9,6 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.models.base import Base
-
 
 # Use SQLite for tests (no PostgreSQL dependency)
 TEST_DATABASE_URL = "sqlite+aiosqlite:///./test.db"
@@ -39,10 +38,9 @@ async def setup_database():
 @pytest_asyncio.fixture
 async def db() -> AsyncGenerator[AsyncSession, None]:
     """Provide a transactional database session for tests."""
-    async with TestSessionLocal() as session:
-        async with session.begin():
-            yield session
-            await session.rollback()
+    async with TestSessionLocal() as session, session.begin():
+        yield session
+        await session.rollback()
 
 
 @pytest.fixture
@@ -51,7 +49,12 @@ def sample_candidate_data() -> dict:
     return {
         "full_name": "Priya Sharma",
         "phone": "9876543210",
-        "education": {"degree": "bachelors", "institution": "IIT Delhi", "year_of_passing": 2024, "field_of_study": "Computer Science"},
+        "education": {
+            "degree": "bachelors",
+            "institution": "IIT Delhi",
+            "year_of_passing": 2024,
+            "field_of_study": "Computer Science",
+        },
         "skills": ["python", "machine learning", "data analysis", "sql"],
         "location": "New Delhi",
         "district": "South Delhi",

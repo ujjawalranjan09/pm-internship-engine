@@ -1,7 +1,7 @@
 """Match Pydantic schemas."""
 
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any
 
 from pydantic import BaseModel
 
@@ -33,9 +33,9 @@ class MatchResponse(BaseModel):
     candidate_id: int
     opportunity_id: int
     score: float
-    score_breakdown: Optional[dict[str, Any]] = None
-    explanation: Optional[str] = None
-    rank: Optional[int] = None
+    score_breakdown: dict[str, Any] | None = None
+    explanation: str | None = None
+    rank: int | None = None
     status: str = "pending"
     created_at: datetime
     updated_at: datetime
@@ -48,8 +48,8 @@ class MatchCandidateBrief(BaseModel):
 
     id: int
     full_name: str
-    skills: Optional[list[str]] = None
-    state: Optional[str] = None
+    skills: list[str] | None = None
+    state: str | None = None
 
 
 class MatchOpportunityBrief(BaseModel):
@@ -57,12 +57,12 @@ class MatchOpportunityBrief(BaseModel):
 
     id: int
     title: str
-    sector: Optional[str] = None
-    location: Optional[str] = None
+    sector: str | None = None
+    location: str | None = None
 
 
 class MatchDetailResponse(MatchResponse):
     """Extended match response with candidate and opportunity details."""
 
-    candidate: Optional[MatchCandidateBrief] = None
-    opportunity: Optional[MatchOpportunityBrief] = None
+    candidate: MatchCandidateBrief | None = None
+    opportunity: MatchOpportunityBrief | None = None

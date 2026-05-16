@@ -1,9 +1,9 @@
 """Audit domain module — immutable audit trail management."""
 
 import logging
-from typing import Any, Optional
+from typing import Any
 
-from sqlalchemy import select, func
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.audit_log import AuditLog
@@ -24,11 +24,11 @@ class AuditModule:
         self,
         action: str,
         entity_type: str,
-        entity_id: Optional[int] = None,
+        entity_id: int | None = None,
         *,
-        user_id: Optional[int] = None,
-        details: Optional[dict[str, Any]] = None,
-        ip_address: Optional[str] = None,
+        user_id: int | None = None,
+        details: dict[str, Any] | None = None,
+        ip_address: str | None = None,
     ) -> AuditLog:
         """Append an audit log entry."""
         entry = AuditLog(
@@ -71,15 +71,11 @@ class AuditModule:
         self,
         user_id: int,
         *,
-        action: Optional[str] = None,
+        action: str | None = None,
         limit: int = 100,
     ) -> list[AuditLog]:
         """Get all audit entries for a specific user."""
-        query = (
-            select(AuditLog)
-            .where(AuditLog.user_id == user_id)
-            .order_by(AuditLog.created_at.desc())
-        )
+        query = select(AuditLog).where(AuditLog.user_id == user_id).order_by(AuditLog.created_at.desc())
         if action:
             query = query.where(AuditLog.action == action)
         query = query.limit(limit)
@@ -89,8 +85,8 @@ class AuditModule:
     async def get_recent_actions(
         self,
         *,
-        action: Optional[str] = None,
-        entity_type: Optional[str] = None,
+        action: str | None = None,
+        entity_type: str | None = None,
         limit: int = 100,
     ) -> list[AuditLog]:
         """Get recent audit entries with optional filters."""
@@ -106,8 +102,8 @@ class AuditModule:
     async def count_actions(
         self,
         *,
-        action: Optional[str] = None,
-        entity_type: Optional[str] = None,
+        action: str | None = None,
+        entity_type: str | None = None,
     ) -> int:
         """Count audit entries matching filters."""
         query = select(func.count(AuditLog.id))

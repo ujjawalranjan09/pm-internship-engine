@@ -2,12 +2,11 @@
 
 import numpy as np
 import pandas as pd
-import pytest
 
 from app.ml.fairness.policy_engine import (
     PolicyConfig,
-    load_policy,
     apply_policy,
+    load_policy,
 )
 
 
@@ -60,14 +59,16 @@ class TestApplyPolicy:
 
     def test_basic_reranking(self):
         scores = np.array([0.8, 0.7, 0.6, 0.5])
-        candidates = pd.DataFrame({
-            "candidate_id": [1, 2, 3, 4],
-            "district": ["A", "B", "A", "C"],
-            "category": ["general", "sc", "obc", "st"],
-            "is_rural": [False, True, True, False],
-            "gender": ["male", "female", "male", "female"],
-            "previous_allocations": [0, 0, 0, 0],
-        })
+        candidates = pd.DataFrame(
+            {
+                "candidate_id": [1, 2, 3, 4],
+                "district": ["A", "B", "A", "C"],
+                "category": ["general", "sc", "obc", "st"],
+                "is_rural": [False, True, True, False],
+                "gender": ["male", "female", "male", "female"],
+                "previous_allocations": [0, 0, 0, 0],
+            }
+        )
         config = PolicyConfig(
             enable_district_uplift=True,
             enable_category_balancing=True,
@@ -82,14 +83,16 @@ class TestApplyPolicy:
 
     def test_repeat_penalty(self):
         scores = np.array([0.8, 0.7])
-        candidates = pd.DataFrame({
-            "candidate_id": [1, 2],
-            "district": ["A", "A"],
-            "category": ["general", "general"],
-            "is_rural": [False, False],
-            "gender": ["male", "male"],
-            "previous_allocations": [0, 3],
-        })
+        candidates = pd.DataFrame(
+            {
+                "candidate_id": [1, 2],
+                "district": ["A", "A"],
+                "category": ["general", "general"],
+                "is_rural": [False, False],
+                "gender": ["male", "male"],
+                "previous_allocations": [0, 3],
+            }
+        )
         config = PolicyConfig(
             enable_repeat_penalty=True,
             enable_district_uplift=False,
@@ -103,14 +106,16 @@ class TestApplyPolicy:
 
     def test_scores_stay_non_negative(self):
         scores = np.array([0.05, 0.1])
-        candidates = pd.DataFrame({
-            "candidate_id": [1, 2],
-            "district": ["A", "A"],
-            "category": ["general", "general"],
-            "is_rural": [False, False],
-            "gender": ["male", "male"],
-            "previous_allocations": [5, 5],  # Heavy penalty
-        })
+        candidates = pd.DataFrame(
+            {
+                "candidate_id": [1, 2],
+                "district": ["A", "A"],
+                "category": ["general", "general"],
+                "is_rural": [False, False],
+                "gender": ["male", "male"],
+                "previous_allocations": [5, 5],  # Heavy penalty
+            }
+        )
         config = PolicyConfig(enable_repeat_penalty=True)
         result = apply_policy(scores, candidates, config)
         assert all(s >= 0 for s in result)

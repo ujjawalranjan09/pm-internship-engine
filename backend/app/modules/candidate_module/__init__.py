@@ -1,13 +1,12 @@
 """Candidate domain module — profile CRUD and enrichment."""
 
 import logging
-from typing import Any, Optional
 
-from sqlalchemy import select, func
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.candidate import CandidateProfile
-from app.models.user import User
+from app.models.user import User  # noqa: F401 - re-export
 from app.schemas.candidate import CandidateCreate, CandidateUpdate
 
 logger = logging.getLogger(__name__)
@@ -19,9 +18,7 @@ class CandidateModule:
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
 
-    async def create_profile(
-        self, user_id: int, data: CandidateCreate
-    ) -> CandidateProfile:
+    async def create_profile(self, user_id: int, data: CandidateCreate) -> CandidateProfile:
         """Create a candidate profile for an existing user."""
         profile = CandidateProfile(
             user_id=user_id,
@@ -44,23 +41,17 @@ class CandidateModule:
         logger.info("Created candidate profile for user %d", user_id)
         return profile
 
-    async def get_profile(self, candidate_id: int) -> Optional[CandidateProfile]:
+    async def get_profile(self, candidate_id: int) -> CandidateProfile | None:
         """Fetch a candidate profile by ID."""
-        result = await self.db.execute(
-            select(CandidateProfile).where(CandidateProfile.id == candidate_id)
-        )
+        result = await self.db.execute(select(CandidateProfile).where(CandidateProfile.id == candidate_id))
         return result.scalar_one_or_none()
 
-    async def get_by_user_id(self, user_id: int) -> Optional[CandidateProfile]:
+    async def get_by_user_id(self, user_id: int) -> CandidateProfile | None:
         """Fetch a candidate profile by user ID."""
-        result = await self.db.execute(
-            select(CandidateProfile).where(CandidateProfile.user_id == user_id)
-        )
+        result = await self.db.execute(select(CandidateProfile).where(CandidateProfile.user_id == user_id))
         return result.scalar_one_or_none()
 
-    async def update_profile(
-        self, candidate_id: int, data: CandidateUpdate
-    ) -> Optional[CandidateProfile]:
+    async def update_profile(self, candidate_id: int, data: CandidateUpdate) -> CandidateProfile | None:
         """Update an existing candidate profile."""
         profile = await self.get_profile(candidate_id)
         if profile is None:
@@ -80,10 +71,10 @@ class CandidateModule:
     async def list_profiles(
         self,
         *,
-        state: Optional[str] = None,
-        district: Optional[str] = None,
-        social_category: Optional[str] = None,
-        is_rural: Optional[bool] = None,
+        state: str | None = None,
+        district: str | None = None,
+        social_category: str | None = None,
+        is_rural: bool | None = None,
         skip: int = 0,
         limit: int = 50,
     ) -> list[CandidateProfile]:

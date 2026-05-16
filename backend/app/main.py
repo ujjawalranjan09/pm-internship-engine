@@ -15,7 +15,6 @@ from app.core.config import get_settings
 from app.core.database import engine
 from app.core.events import EVENT_ALLOCATION_COMPLETE, EVENT_CANDIDATE_REGISTERED, event_bus
 from app.core.exceptions import register_exception_handlers
-from app.models.base import Base
 
 settings = get_settings()
 

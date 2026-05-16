@@ -1,13 +1,14 @@
 """Custom exception classes and FastAPI exception handlers."""
 
 import logging
+
 from fastapi import FastAPI, Request, status
 from fastapi.responses import JSONResponse
 
 logger = logging.getLogger(__name__)
 
 
-class AppException(Exception):
+class AppException(Exception):  # noqa: N818
     """Base application exception."""
 
     def __init__(self, detail: str, status_code: int = 400) -> None:

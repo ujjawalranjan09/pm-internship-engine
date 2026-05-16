@@ -3,7 +3,8 @@
 import asyncio
 import logging
 from collections import defaultdict
-from typing import Any, Callable, Coroutine
+from collections.abc import Callable, Coroutine
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +33,7 @@ class EventBus:
             return
         tasks = [asyncio.create_task(h(data)) for h in handlers]
         results = await asyncio.gather(*tasks, return_exceptions=True)
-        for handler, result in zip(handlers, results):
+        for handler, result in zip(handlers, results, strict=False):
             if isinstance(result, Exception):
                 logger.error(
                     "Handler %s failed for event '%s': %s",

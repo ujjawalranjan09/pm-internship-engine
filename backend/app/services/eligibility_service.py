@@ -102,19 +102,20 @@ class EligibilityService:
     def _check_location_eligibility(self, candidate: CandidateProfile, criteria: dict) -> bool:
         """Check if candidate meets location-based eligibility."""
         allowed_states = criteria.get("allowed_states")
-        if allowed_states and candidate.state:
-            if candidate.state.lower() not in [s.lower() for s in allowed_states]:
-                return False
+        if allowed_states and candidate.state and candidate.state.lower() not in [s.lower() for s in allowed_states]:
+            return False
 
         excluded_states = criteria.get("excluded_states")
-        if excluded_states and candidate.state:
-            if candidate.state.lower() in [s.lower() for s in excluded_states]:
-                return False
+        if excluded_states and candidate.state and candidate.state.lower() in [s.lower() for s in excluded_states]:
+            return False
 
         allowed_districts = criteria.get("allowed_districts")
-        if allowed_districts and candidate.district:
-            if candidate.district.lower() not in [d.lower() for d in allowed_districts]:
-                return False
+        if (  # noqa: SIM103
+            allowed_districts
+            and candidate.district
+            and candidate.district.lower() not in [d.lower() for d in allowed_districts]
+        ):
+            return False
 
         return True
 
@@ -128,7 +129,4 @@ class EligibilityService:
                 return False
 
         rural_only = criteria.get("rural_only", False)
-        if rural_only and not candidate.is_rural:
-            return False
-
-        return True
+        return not (rural_only and not candidate.is_rural)

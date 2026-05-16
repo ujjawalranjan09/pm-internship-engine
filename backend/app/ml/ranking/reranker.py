@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import numpy as np
 
@@ -27,6 +27,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class RerankerConfig:
     """Configuration for the fairness-aware re-ranker."""
+
     # Category boosts (additive to score)
     sc_boost: float = 0.08
     st_boost: float = 0.10
@@ -54,11 +55,12 @@ class RerankerConfig:
 @dataclass
 class RerankedCandidate:
     """A candidate after fairness-aware re-ranking."""
+
     candidate_id: str
     opportunity_id: str
     original_score: float
     adjusted_score: float
-    adjustments: Dict[str, float] = field(default_factory=dict)
+    adjustments: dict[str, float] = field(default_factory=dict)
     rank: int = 0
 
 
@@ -75,16 +77,16 @@ class Reranker:
         results = reranker.rerank(scored_candidates, candidate_metadata)
     """
 
-    def __init__(self, config: Optional[RerankerConfig] = None) -> None:
+    def __init__(self, config: RerankerConfig | None = None) -> None:
         self.config = config or RerankerConfig()
 
     def rerank(
         self,
-        scored: List[Dict[str, Any]],
-        candidate_metadata: Dict[str, Dict[str, Any]],
-        opportunity_metadata: Optional[Dict[str, Any]] = None,
-        district_counts: Optional[Dict[str, int]] = None,
-    ) -> List[RerankedCandidate]:
+        scored: list[dict[str, Any]],
+        candidate_metadata: dict[str, dict[str, Any]],
+        opportunity_metadata: dict[str, Any] | None = None,
+        district_counts: dict[str, int] | None = None,
+    ) -> list[RerankedCandidate]:
         """
         Re-rank scored candidates with fairness adjustments.
 
@@ -105,16 +107,13 @@ class Reranker:
 
         # Determine under-represented districts
         underrepresented: set = set()
-        if district_counts:
-            if district_counts:
-                values = list(district_counts.values())
-                if values:
-                    threshold = np.percentile(values, self.config.district_threshold_percentile * 100)
-                    underrepresented = {
-                        d for d, c in district_counts.items() if c <= threshold
-                    }
+        if district_counts and district_counts:
+            values = list(district_counts.values())
+            if values:
+                threshold = np.percentile(values, self.config.district_threshold_percentile * 100)
+                underrepresented = {d for d, c in district_counts.items() if c <= threshold}
 
-        results: List[RerankedCandidate] = []
+        results: list[RerankedCandidate] = []
 
         for item in scored:
             cid = str(item["candidate_id"])
@@ -122,17 +121,19 @@ class Reranker:
             original = float(item["score"])
             meta = candidate_metadata.get(cid, {})
 
-            adjustments: Dict[str, float] = {}
+            adjustments: dict[str, float] = {}
 
             # Skip candidates below quality floor
             if original < self.config.min_quality_score:
-                results.append(RerankedCandidate(
-                    candidate_id=cid,
-                    opportunity_id=oid,
-                    original_score=original,
-                    adjusted_score=original,
-                    adjustments={},
-                ))
+                results.append(
+                    RerankedCandidate(
+                        candidate_id=cid,
+                        opportunity_id=oid,
+                        original_score=original,
+                        adjusted_score=original,
+                        adjustments={},
+                    )
+                )
                 continue
 
             # Social category boost
@@ -172,13 +173,15 @@ class Reranker:
 
             adjusted = min(1.0, original + total_adjustment)
 
-            results.append(RerankedCandidate(
-                candidate_id=cid,
-                opportunity_id=oid,
-                original_score=original,
-                adjusted_score=adjusted,
-                adjustments=adjustments,
-            ))
+            results.append(
+                RerankedCandidate(
+                    candidate_id=cid,
+                    opportunity_id=oid,
+                    original_score=original,
+                    adjusted_score=adjusted,
+                    adjustments=adjustments,
+                )
+            )
 
         # Sort by adjusted score descending
         results.sort(key=lambda r: -r.adjusted_score)
@@ -189,11 +192,11 @@ class Reranker:
 
     def rerank_with_quota(
         self,
-        scored: List[Dict[str, Any]],
-        candidate_metadata: Dict[str, Dict[str, Any]],
-        quotas: Dict[str, float],
+        scored: list[dict[str, Any]],
+        candidate_metadata: dict[str, dict[str, Any]],
+        quotas: dict[str, float],
         total_slots: int,
-    ) -> List[RerankedCandidate]:
+    ) -> list[RerankedCandidate]:
         """
         Re-rank with hard minimum representation quotas.
 
@@ -217,23 +220,20 @@ class Reranker:
             return reranked
 
         # Calculate required counts per group
-        required: Dict[str, int] = {}
+        required: dict[str, int] = {}
         for group, fraction in quotas.items():
             required[group.lower()] = max(1, int(fraction * total_slots))
 
         # Check if quotas are already met in top results
         top = reranked[:total_slots]
-        group_counts: Dict[str, int] = {}
+        group_counts: dict[str, int] = {}
         for r in top:
             meta = candidate_metadata.get(r.candidate_id, {})
             cat = (meta.get("social_category") or "general").lower()
             group_counts[cat] = group_counts.get(cat, 0) + 1
 
         # If all quotas met, return as-is
-        all_met = all(
-            group_counts.get(group, 0) >= count
-            for group, count in required.items()
-        )
+        all_met = all(group_counts.get(group, 0) >= count for group, count in required.items())
         if all_met:
             return reranked
 
@@ -249,7 +249,8 @@ class Reranker:
 
             # Find candidates from this group in remaining
             group_remaining = [
-                r for r in remaining
+                r
+                for r in remaining
                 if (candidate_metadata.get(r.candidate_id, {}).get("social_category", "general").lower() == group)
             ]
 

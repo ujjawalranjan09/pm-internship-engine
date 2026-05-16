@@ -1,14 +1,12 @@
 """Tests for the optimizer module."""
 
-import numpy as np
 import pandas as pd
 import pytest
 
 from app.ml.ranking.optimizer import (
-    AllocationOptimizer,
     CandidateProfile,
-    OptimizationConstraints,
     OpportunitySlot,
+    OptimizationConstraints,
     build_allocation_problem,
     export_results,
 )

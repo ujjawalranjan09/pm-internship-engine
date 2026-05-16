@@ -25,7 +25,6 @@ from __future__ import annotations
 import logging
 import math
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 
@@ -42,6 +41,7 @@ class HeuristicWeights:
     All weights should sum to 1.0 for normalized interpretation,
     though the scorer will work with any weights and normalize internally.
     """
+
     skill_match: float = 0.30
     qualification_fit: float = 0.15
     sector_interest: float = 0.10
@@ -53,21 +53,24 @@ class HeuristicWeights:
 
     def to_array(self) -> np.ndarray:
         """Convert weights to numpy array matching feature order."""
-        return np.array([
-            self.skill_match,
-            self.skill_match,
-            self.qualification_fit,
-            self.location_preference,
-            self.sector_interest,
-            self.profile_readiness,
-            0.0,
-            self.historical_adjustment,
-            0.0,
-            self.qualification_fit,
-            0.0,
-            self.semantic_similarity,
-            self.skill_match,
-        ], dtype=np.float64)
+        return np.array(
+            [
+                self.skill_match,
+                self.skill_match,
+                self.qualification_fit,
+                self.location_preference,
+                self.sector_interest,
+                self.profile_readiness,
+                0.0,
+                self.historical_adjustment,
+                0.0,
+                self.qualification_fit,
+                0.0,
+                self.semantic_similarity,
+                self.skill_match,
+            ],
+            dtype=np.float64,
+        )
 
     def normalize(self) -> HeuristicWeights:
         """Return a normalized copy where weights sum to 1.0."""
@@ -92,11 +95,12 @@ class HeuristicWeights:
 @dataclass
 class ScoredCandidate:
     """A candidate with their computed heuristic score."""
+
     candidate_id: str
     opportunity_id: str
     score: float
-    raw_features: Dict[str, float] = field(default_factory=dict)
-    score_breakdown: Dict[str, float] = field(default_factory=dict)
+    raw_features: dict[str, float] = field(default_factory=dict)
+    score_breakdown: dict[str, float] = field(default_factory=dict)
     rank: int = 0
 
 
@@ -111,7 +115,7 @@ class HeuristicScorer:
 
     def __init__(
         self,
-        weights: Optional[HeuristicWeights] = None,
+        weights: HeuristicWeights | None = None,
         normalize_weights: bool = True,
     ) -> None:
         self.weights = weights or HeuristicWeights()
@@ -124,13 +128,17 @@ class HeuristicScorer:
             "HeuristicScorer initialized with weights: "
             "skill=%.2f, qual=%.2f, sector=%.2f, location=%.2f, "
             "profile=%.2f, employer=%.2f, history=%.2f, semantic=%.2f",
-            self.weights.skill_match, self.weights.qualification_fit,
-            self.weights.sector_interest, self.weights.location_preference,
-            self.weights.profile_readiness, self.weights.employer_preference,
-            self.weights.historical_adjustment, self.weights.semantic_similarity,
+            self.weights.skill_match,
+            self.weights.qualification_fit,
+            self.weights.sector_interest,
+            self.weights.location_preference,
+            self.weights.profile_readiness,
+            self.weights.employer_preference,
+            self.weights.historical_adjustment,
+            self.weights.semantic_similarity,
         )
 
-    def score(self, features: FeatureVector) -> Tuple[float, Dict[str, float]]:
+    def score(self, features: FeatureVector) -> tuple[float, dict[str, float]]:
         """Score a single candidate-opportunity pair."""
         feat_array = features.to_array()
 
@@ -151,14 +159,12 @@ class HeuristicScorer:
         """Apply sigmoid normalization to score."""
         return 1.0 / (1.0 + math.exp(-temperature * (x - 0.5)))
 
-    def _build_breakdown(
-        self, features: FeatureVector, feat_array: np.ndarray
-    ) -> Dict[str, float]:
+    def _build_breakdown(self, features: FeatureVector, feat_array: np.ndarray) -> dict[str, float]:
         """Build detailed score breakdown for explainability."""
         feature_names = FeatureVector.feature_names()
         breakdown = {}
 
-        for name, value, weight in zip(feature_names, feat_array, self._weight_array):
+        for name, value, weight in zip(feature_names, feat_array, self._weight_array, strict=False):
             breakdown[name] = {
                 "value": float(value),
                 "weight": float(weight),
@@ -177,25 +183,27 @@ class HeuristicScorer:
     def rank_candidates(
         self,
         features_matrix: np.ndarray,
-        candidate_ids: List[str],
+        candidate_ids: list[str],
         opportunity_id: str,
-        top_k: Optional[int] = None,
+        top_k: int | None = None,
         min_score: float = 0.0,
-    ) -> List[ScoredCandidate]:
+    ) -> list[ScoredCandidate]:
         """Rank candidates for a single opportunity."""
         scores = self.score_batch(features_matrix)
 
         scored = []
         feature_names = FeatureVector.feature_names()
-        for i, (cid, score) in enumerate(zip(candidate_ids, scores)):
+        for i, (cid, score) in enumerate(zip(candidate_ids, scores, strict=False)):
             if score >= min_score:
-                raw_features = dict(zip(feature_names, features_matrix[i].tolist()))
-                scored.append(ScoredCandidate(
-                    candidate_id=cid,
-                    opportunity_id=opportunity_id,
-                    score=float(score),
-                    raw_features=raw_features,
-                ))
+                raw_features = dict(zip(feature_names, features_matrix[i].tolist(), strict=False))
+                scored.append(
+                    ScoredCandidate(
+                        candidate_id=cid,
+                        opportunity_id=opportunity_id,
+                        score=float(score),
+                        raw_features=raw_features,
+                    )
+                )
 
         scored.sort(key=lambda x: -x.score)
 
@@ -211,24 +219,26 @@ class HeuristicScorer:
         self,
         features_matrix: np.ndarray,
         candidate_id: str,
-        opportunity_ids: List[str],
-        top_k: Optional[int] = None,
+        opportunity_ids: list[str],
+        top_k: int | None = None,
         min_score: float = 0.0,
-    ) -> List[ScoredCandidate]:
+    ) -> list[ScoredCandidate]:
         """Rank opportunities for a single candidate."""
         scores = self.score_batch(features_matrix)
 
         scored = []
         feature_names = FeatureVector.feature_names()
-        for i, (oid, score) in enumerate(zip(opportunity_ids, scores)):
+        for i, (oid, score) in enumerate(zip(opportunity_ids, scores, strict=False)):
             if score >= min_score:
-                raw_features = dict(zip(feature_names, features_matrix[i].tolist()))
-                scored.append(ScoredCandidate(
-                    candidate_id=candidate_id,
-                    opportunity_id=oid,
-                    score=float(score),
-                    raw_features=raw_features,
-                ))
+                raw_features = dict(zip(feature_names, features_matrix[i].tolist(), strict=False))
+                scored.append(
+                    ScoredCandidate(
+                        candidate_id=candidate_id,
+                        opportunity_id=oid,
+                        score=float(score),
+                        raw_features=raw_features,
+                    )
+                )
 
         scored.sort(key=lambda x: -x.score)
         for i, sc in enumerate(scored):
@@ -239,7 +249,7 @@ class HeuristicScorer:
 
         return scored
 
-    def update_weights(self, new_weights: Dict[str, float]) -> None:
+    def update_weights(self, new_weights: dict[str, float]) -> None:
         """Update scoring weights dynamically."""
         for name, value in new_weights.items():
             if hasattr(self.weights, name):

@@ -23,7 +23,7 @@ from __future__ import annotations
 import logging
 import time
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any
 
 import numpy as np
 
@@ -39,6 +39,7 @@ except ImportError:
 @dataclass
 class AllocationResult:
     """Result of the constrained allocation optimization."""
+
     candidate_id: str
     opportunity_id: str
     score: float
@@ -49,15 +50,16 @@ class AllocationResult:
 @dataclass
 class OptimizationResult:
     """Full result of an optimization run."""
-    allocations: List[AllocationResult] = field(default_factory=list)
+
+    allocations: list[AllocationResult] = field(default_factory=list)
     total_score: float = 0.0
     num_allocated: int = 0
     num_candidates: int = 0
     num_opportunities: int = 0
     solver_time_seconds: float = 0.0
     solver_status: str = "unknown"
-    unallocated_candidates: List[str] = field(default_factory=list)
-    unfilled_opportunities: List[str] = field(default_factory=list)
+    unallocated_candidates: list[str] = field(default_factory=list)
+    unfilled_opportunities: list[str] = field(default_factory=list)
 
 
 class AllocationOptimizer:
@@ -81,11 +83,11 @@ class AllocationOptimizer:
     def optimize(
         self,
         score_matrix: np.ndarray,
-        candidate_ids: List[str],
-        opportunity_ids: List[str],
-        capacities: Dict[str, int],
-        constraints: Optional[Dict[str, Any]] = None,
-        blocked_pairs: Optional[Set[Tuple[str, str]]] = None,
+        candidate_ids: list[str],
+        opportunity_ids: list[str],
+        capacities: dict[str, int],
+        constraints: dict[str, Any] | None = None,
+        blocked_pairs: set[tuple[str, str]] | None = None,
     ) -> OptimizationResult:
         """
         Solve the allocation optimization problem.
@@ -106,14 +108,21 @@ class AllocationOptimizer:
 
         if pywraplp is not None:
             result = self._solve_ortools(
-                score_matrix, candidate_ids, opportunity_ids,
-                capacities, constraints, blocked_pairs,
+                score_matrix,
+                candidate_ids,
+                opportunity_ids,
+                capacities,
+                constraints,
+                blocked_pairs,
             )
         elif self._use_greedy:
             logger.warning("Using greedy fallback (install ortools for optimal allocation)")
             result = self._solve_greedy(
-                score_matrix, candidate_ids, opportunity_ids,
-                capacities, blocked_pairs,
+                score_matrix,
+                candidate_ids,
+                opportunity_ids,
+                capacities,
+                blocked_pairs,
             )
         else:
             raise ImportError("ortools is required for optimization. pip install ortools")
@@ -124,11 +133,11 @@ class AllocationOptimizer:
     def _solve_ortools(
         self,
         score_matrix: np.ndarray,
-        candidate_ids: List[str],
-        opportunity_ids: List[str],
-        capacities: Dict[str, int],
-        constraints: Optional[Dict[str, Any]],
-        blocked_pairs: Optional[Set[Tuple[str, str]]],
+        candidate_ids: list[str],
+        opportunity_ids: list[str],
+        capacities: dict[str, int],
+        constraints: dict[str, Any] | None,
+        blocked_pairs: set[tuple[str, str]] | None,
     ) -> OptimizationResult:
         """Solve using OR-Tools linear programming."""
         n_candidates = len(candidate_ids)
@@ -167,16 +176,12 @@ class AllocationOptimizer:
         # Constraint 4: Reserved slots / quotas
         if constraints:
             reserved = constraints.get("reserved_slots", {})
-            for group, group_data in reserved.items():
+            for _group, group_data in reserved.items():
                 group_candidate_indices = group_data.get("candidate_indices", [])
                 min_slots = group_data.get("min_slots", 0)
                 if group_candidate_indices and min_slots > 0:
                     solver.Add(
-                        sum(
-                            x[i, j]
-                            for i in group_candidate_indices
-                            for j in range(n_opportunities)
-                        ) >= min_slots
+                        sum(x[i, j] for i in group_candidate_indices for j in range(n_opportunities)) >= min_slots
                     )
 
         # Objective: maximize total score
@@ -200,32 +205,29 @@ class AllocationOptimizer:
 
         # Extract solution
         allocations = []
-        allocated_candidates: Set[str] = set()
-        allocated_per_opp: Dict[str, int] = {}
+        allocated_candidates: set[str] = set()
+        allocated_per_opp: dict[str, int] = {}
 
         for i in range(n_candidates):
             for j in range(n_opportunities):
                 if x[i, j].solution_value() > 0.5:
-                    allocations.append(AllocationResult(
-                        candidate_id=candidate_ids[i],
-                        opportunity_id=opportunity_ids[j],
-                        score=float(score_matrix[i, j]),
-                        is_allocated=True,
-                        explanation=f"Optimal allocation (score: {score_matrix[i, j]:.3f})",
-                    ))
-                    allocated_candidates.add(candidate_ids[i])
-                    allocated_per_opp[opportunity_ids[j]] = (
-                        allocated_per_opp.get(opportunity_ids[j], 0) + 1
+                    allocations.append(
+                        AllocationResult(
+                            candidate_id=candidate_ids[i],
+                            opportunity_id=opportunity_ids[j],
+                            score=float(score_matrix[i, j]),
+                            is_allocated=True,
+                            explanation=f"Optimal allocation (score: {score_matrix[i, j]:.3f})",
+                        )
                     )
+                    allocated_candidates.add(candidate_ids[i])
+                    allocated_per_opp[opportunity_ids[j]] = allocated_per_opp.get(opportunity_ids[j], 0) + 1
 
         # Unallocated candidates
         unallocated = [cid for cid in candidate_ids if cid not in allocated_candidates]
 
         # Unfilled opportunities
-        unfilled = [
-            oid for oid in opportunity_ids
-            if allocated_per_opp.get(oid, 0) < capacities.get(oid, 1)
-        ]
+        unfilled = [oid for oid in opportunity_ids if allocated_per_opp.get(oid, 0) < capacities.get(oid, 1)]
 
         return OptimizationResult(
             allocations=allocations,
@@ -241,10 +243,10 @@ class AllocationOptimizer:
     def _solve_greedy(
         self,
         score_matrix: np.ndarray,
-        candidate_ids: List[str],
-        opportunity_ids: List[str],
-        capacities: Dict[str, int],
-        blocked_pairs: Optional[Set[Tuple[str, str]]],
+        candidate_ids: list[str],
+        opportunity_ids: list[str],
+        capacities: dict[str, int],
+        blocked_pairs: set[tuple[str, str]] | None,
     ) -> OptimizationResult:
         """
         Greedy fallback: assign highest-score pairs first.
@@ -266,7 +268,7 @@ class AllocationOptimizer:
         pairs.sort(key=lambda p: -p[0])
 
         # Greedy assignment
-        candidate_assigned: Set[int] = set()
+        candidate_assigned: set[int] = set()
         opp_remaining = {oid: capacities.get(oid, 1) for oid in opportunity_ids}
         allocations = []
 
@@ -277,20 +279,19 @@ class AllocationOptimizer:
             if opp_remaining.get(oid, 0) <= 0:
                 continue
 
-            allocations.append(AllocationResult(
-                candidate_id=candidate_ids[i],
-                opportunity_id=oid,
-                score=score,
-                is_allocated=True,
-                explanation=f"Greedy allocation (score: {score:.3f})",
-            ))
+            allocations.append(
+                AllocationResult(
+                    candidate_id=candidate_ids[i],
+                    opportunity_id=oid,
+                    score=score,
+                    is_allocated=True,
+                    explanation=f"Greedy allocation (score: {score:.3f})",
+                )
+            )
             candidate_assigned.add(i)
             opp_remaining[oid] -= 1
 
-        unallocated = [
-            cid for idx, cid in enumerate(candidate_ids)
-            if idx not in candidate_assigned
-        ]
+        unallocated = [cid for idx, cid in enumerate(candidate_ids) if idx not in candidate_assigned]
         unfilled = [oid for oid, remaining in opp_remaining.items() if remaining > 0]
 
         total_score = sum(a.score for a in allocations)

@@ -4,9 +4,9 @@ import numpy as np
 import pytest
 
 from app.ml.evaluation import (
-    ndcg_at_k,
     mean_average_precision,
     mean_reciprocal_rank,
+    ndcg_at_k,
 )
 
 

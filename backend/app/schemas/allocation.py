@@ -1,7 +1,7 @@
 """Allocation Pydantic schemas."""
 
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -10,7 +10,7 @@ class AllocationRunRequest(BaseModel):
     """Request to trigger a new allocation cycle."""
 
     cycle_name: str = Field(..., min_length=1, max_length=255)
-    config: Optional[dict[str, Any]] = None
+    config: dict[str, Any] | None = None
     dry_run: bool = False
 
 
@@ -18,8 +18,8 @@ class AllocationOverride(BaseModel):
     """Manual override of an allocation."""
 
     allocation_id: int
-    new_opportunity_id: Optional[int] = None
-    new_status: Optional[str] = None
+    new_opportunity_id: int | None = None
+    new_status: str | None = None
     reason: str = Field(..., min_length=1)
 
 
@@ -29,11 +29,11 @@ class AllocationResponse(BaseModel):
     id: int
     candidate_id: int
     opportunity_id: int
-    match_id: Optional[int] = None
+    match_id: int | None = None
     allocation_cycle_id: int
     status: str
-    explanation: Optional[str] = None
-    allocated_at: Optional[datetime] = None
+    explanation: str | None = None
+    allocated_at: datetime | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -46,9 +46,9 @@ class AllocationCycleResponse(BaseModel):
     id: int
     name: str
     status: str
-    config: Optional[dict[str, Any]] = None
-    started_at: Optional[datetime] = None
-    completed_at: Optional[datetime] = None
+    config: dict[str, Any] | None = None
+    started_at: datetime | None = None
+    completed_at: datetime | None = None
     created_at: datetime
     updated_at: datetime
 

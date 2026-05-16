@@ -3,9 +3,9 @@
 import pytest
 
 from app.ml.ranking.explainer import (
-    explain_match,
-    candidate_facing_explanation,
     admin_facing_explanation,
+    candidate_facing_explanation,
+    explain_match,
     score_breakdown,
 )
 
@@ -78,9 +78,7 @@ class TestExplainMatch:
 
     def test_with_shap_values(self, sample_candidate, sample_opportunity, sample_scores):
         shap_vals = {"skill_match": 0.3, "location_match": 0.2, "education_match": -0.1}
-        result = explain_match(
-            sample_candidate, sample_opportunity, sample_scores, shap_values=shap_vals
-        )
+        result = explain_match(sample_candidate, sample_opportunity, sample_scores, shap_values=shap_vals)
         assert result.shap_top_features is not None
         assert len(result.shap_top_features) == 3
 

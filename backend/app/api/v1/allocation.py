@@ -1,6 +1,6 @@
 """Allocation endpoints: run allocation, get results, override."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
@@ -42,7 +42,7 @@ async def run_allocation(
         name=payload.cycle_name,
         status=CycleStatus.RUNNING,
         config=payload.config,
-        started_at=datetime.now(timezone.utc),
+        started_at=datetime.now(UTC),
     )
     db.add(cycle)
     await db.flush()
@@ -50,7 +50,7 @@ async def run_allocation(
 
     if payload.dry_run:
         cycle.status = CycleStatus.COMPLETED
-        cycle.completed_at = datetime.now(timezone.utc)
+        cycle.completed_at = datetime.now(UTC)
         await db.flush()
         return cycle
 
@@ -58,13 +58,13 @@ async def run_allocation(
         allocation_service = AllocationService(db)
         result = await allocation_service.run_allocation(cycle_id=cycle.id)
         cycle.status = CycleStatus.COMPLETED
-        cycle.completed_at = datetime.now(timezone.utc)
+        cycle.completed_at = datetime.now(UTC)
         await db.flush()
         await event_bus.publish(EVENT_ALLOCATION_COMPLETE, result)
     except Exception as exc:
         cycle.status = CycleStatus.FAILED
         await db.flush()
-        raise AllocationException(f"Allocation failed: {exc}")
+        raise AllocationException(f"Allocation failed: {exc}") from exc
 
     await db.refresh(cycle)
     return cycle
@@ -76,9 +76,7 @@ async def list_cycles(
     db: AsyncSession = Depends(get_async_session),
 ):
     """List recent allocation cycles."""
-    result = await db.execute(
-        select(AllocationCycle).order_by(AllocationCycle.created_at.desc()).limit(limit)
-    )
+    result = await db.execute(select(AllocationCycle).order_by(AllocationCycle.created_at.desc()).limit(limit))
     cycles = result.scalars().all()
     return [AllocationCycleResponse.model_validate(c) for c in cycles]
 
@@ -89,9 +87,7 @@ async def get_cycle(
     db: AsyncSession = Depends(get_async_session),
 ):
     """Get allocation cycle details."""
-    result = await db.execute(
-        select(AllocationCycle).where(AllocationCycle.id == cycle_id)
-    )
+    result = await db.execute(select(AllocationCycle).where(AllocationCycle.id == cycle_id))
     cycle = result.scalar_one_or_none()
     if cycle is None:
         raise NotFoundException(f"Allocation cycle {cycle_id} not found")
@@ -107,9 +103,7 @@ async def get_cycle_results(
 ):
     """Get allocation results for a specific cycle."""
     result = await db.execute(
-        select(Allocation)
-        .where(Allocation.allocation_cycle_id == cycle_id)
-        .order_by(Allocation.created_at.desc())
+        select(Allocation).where(Allocation.allocation_cycle_id == cycle_id).order_by(Allocation.created_at.desc())
     )
     allocations = result.scalars().all()
     total = len(allocations)
@@ -131,9 +125,7 @@ async def get_cycle_stats(
     db: AsyncSession = Depends(get_async_session),
 ):
     """Get aggregate statistics for an allocation cycle."""
-    result = await db.execute(
-        select(Allocation).where(Allocation.allocation_cycle_id == cycle_id)
-    )
+    result = await db.execute(select(Allocation).where(Allocation.allocation_cycle_id == cycle_id))
     allocations = result.scalars().all()
 
     total = len(allocations)
@@ -166,9 +158,7 @@ async def override_allocation(
             detail="Only admins can override allocations",
         )
 
-    result = await db.execute(
-        select(Allocation).where(Allocation.id == payload.allocation_id)
-    )
+    result = await db.execute(select(Allocation).where(Allocation.id == payload.allocation_id))
     allocation = result.scalar_one_or_none()
     if allocation is None:
         raise NotFoundException(f"Allocation {payload.allocation_id} not found")

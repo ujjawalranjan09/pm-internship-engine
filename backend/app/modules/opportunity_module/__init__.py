@@ -1,9 +1,8 @@
 """Opportunity domain module — CRUD and search integration."""
 
 import logging
-from typing import Any, Optional
 
-from sqlalchemy import select, func
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.opportunity import Opportunity
@@ -18,9 +17,7 @@ class OpportunityModule:
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
 
-    async def create_opportunity(
-        self, employer_id: int, data: OpportunityCreate
-    ) -> Opportunity:
+    async def create_opportunity(self, employer_id: int, data: OpportunityCreate) -> Opportunity:
         """Create a new internship opportunity."""
         opp = Opportunity(
             employer_id=employer_id,
@@ -44,16 +41,12 @@ class OpportunityModule:
         logger.info("Created opportunity %d: %s", opp.id, opp.title)
         return opp
 
-    async def get_opportunity(self, opp_id: int) -> Optional[Opportunity]:
+    async def get_opportunity(self, opp_id: int) -> Opportunity | None:
         """Fetch an opportunity by ID."""
-        result = await self.db.execute(
-            select(Opportunity).where(Opportunity.id == opp_id)
-        )
+        result = await self.db.execute(select(Opportunity).where(Opportunity.id == opp_id))
         return result.scalar_one_or_none()
 
-    async def update_opportunity(
-        self, opp_id: int, data: OpportunityUpdate
-    ) -> Optional[Opportunity]:
+    async def update_opportunity(self, opp_id: int, data: OpportunityUpdate) -> Opportunity | None:
         """Update an existing opportunity."""
         opp = await self.get_opportunity(opp_id)
         if opp is None:
@@ -68,7 +61,7 @@ class OpportunityModule:
         logger.info("Updated opportunity %d", opp_id)
         return opp
 
-    async def deactivate_opportunity(self, opp_id: int) -> Optional[Opportunity]:
+    async def deactivate_opportunity(self, opp_id: int) -> Opportunity | None:
         """Soft-delete an opportunity by marking it inactive."""
         opp = await self.get_opportunity(opp_id)
         if opp is None:
@@ -82,9 +75,9 @@ class OpportunityModule:
     async def list_opportunities(
         self,
         *,
-        sector: Optional[str] = None,
-        state: Optional[str] = None,
-        work_mode: Optional[str] = None,
+        sector: str | None = None,
+        state: str | None = None,
+        work_mode: str | None = None,
         is_active: bool = True,
         skip: int = 0,
         limit: int = 50,
@@ -115,8 +108,6 @@ class OpportunityModule:
         """Return remaining capacity for a list of opportunity IDs."""
         if not opp_ids:
             return {}
-        result = await self.db.execute(
-            select(Opportunity).where(Opportunity.id.in_(opp_ids))
-        )
+        result = await self.db.execute(select(Opportunity).where(Opportunity.id.in_(opp_ids)))
         opps = result.scalars().all()
         return {o.id: o.capacity for o in opps}

@@ -3,14 +3,12 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from app.api.deps import get_async_session, get_current_user
 from app.core.events import EVENT_MATCHING_COMPLETE, event_bus
 from app.core.exceptions import MatchingException, NotFoundException
 from app.models.candidate import CandidateProfile
 from app.models.match import Match
-from app.models.opportunity import Opportunity
 from app.models.user import User
 from app.schemas.match import MatchResponse
 from app.services.matching_service import MatchingService
@@ -25,9 +23,7 @@ async def get_my_recommendations(
     db: AsyncSession = Depends(get_async_session),
 ):
     """Get top-K opportunity recommendations for the authenticated candidate."""
-    result = await db.execute(
-        select(CandidateProfile).where(CandidateProfile.user_id == current_user.id)
-    )
+    result = await db.execute(select(CandidateProfile).where(CandidateProfile.user_id == current_user.id))
     profile = result.scalar_one_or_none()
     if profile is None:
         raise NotFoundException("Candidate profile not found. Please create your profile first.")
@@ -36,7 +32,7 @@ async def get_my_recommendations(
     try:
         matches = await matching_service.get_recommendations(candidate_id=profile.id, top_k=top_k)
     except Exception as exc:
-        raise MatchingException(f"Failed to generate recommendations: {exc}")
+        raise MatchingException(f"Failed to generate recommendations: {exc}") from exc
 
     return [MatchResponse.model_validate(m) for m in matches]
 
@@ -49,10 +45,7 @@ async def get_candidate_matches(
 ):
     """Get matches for a specific candidate."""
     result = await db.execute(
-        select(Match)
-        .where(Match.candidate_id == candidate_id)
-        .order_by(Match.score.desc())
-        .limit(top_k)
+        select(Match).where(Match.candidate_id == candidate_id).order_by(Match.score.desc()).limit(top_k)
     )
     matches = result.scalars().all()
     return [MatchResponse.model_validate(m) for m in matches]
@@ -66,10 +59,7 @@ async def get_opportunity_matches(
 ):
     """Get top matches for a specific opportunity."""
     result = await db.execute(
-        select(Match)
-        .where(Match.opportunity_id == opportunity_id)
-        .order_by(Match.score.desc())
-        .limit(top_k)
+        select(Match).where(Match.opportunity_id == opportunity_id).order_by(Match.score.desc()).limit(top_k)
     )
     matches = result.scalars().all()
     return [MatchResponse.model_validate(m) for m in matches]
@@ -97,4 +87,4 @@ async def trigger_matching(
             "candidates_processed": result.get("candidates_processed", 0),
         }
     except Exception as exc:
-        raise MatchingException(f"Batch matching failed: {exc}")
+        raise MatchingException(f"Batch matching failed: {exc}") from exc

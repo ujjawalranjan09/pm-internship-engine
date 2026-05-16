@@ -17,17 +17,17 @@ Policy types:
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from enum import Enum
-from typing import Any, Callable, Dict, List, Optional
-
-import numpy as np
+from enum import StrEnum
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 
-class PolicyType(str, Enum):
+class PolicyType(StrEnum):
     """Types of fairness policies."""
+
     CATEGORY_BOOST = "category_boost"
     MIN_QUOTA = "min_quota"
     GEO_DIVERSITY = "geo_diversity"
@@ -37,8 +37,9 @@ class PolicyType(str, Enum):
     CUSTOM = "custom"
 
 
-class PolicyAction(str, Enum):
+class PolicyAction(StrEnum):
     """What a policy does when triggered."""
+
     BOOST_SCORE = "boost_score"
     REDUCE_SCORE = "reduce_score"
     GUARANTEE_SLOT = "guarantee_slot"
@@ -49,6 +50,7 @@ class PolicyAction(str, Enum):
 @dataclass
 class PolicyRule:
     """A single fairness policy rule."""
+
     name: str
     policy_type: PolicyType
     action: PolicyAction
@@ -56,7 +58,7 @@ class PolicyRule:
     priority: int = 0  # Higher = applied first
 
     # Conditions
-    target_groups: List[str] = field(default_factory=list)
+    target_groups: list[str] = field(default_factory=list)
     min_group_size: int = 0  # Minimum candidates in group to activate
 
     # Parameters
@@ -65,9 +67,9 @@ class PolicyRule:
     threshold: float = 0.0
 
     # Custom function (for PolicyType.CUSTOM)
-    custom_fn: Optional[Callable] = field(default=None, repr=False)
+    custom_fn: Callable | None = field(default=None, repr=False)
 
-    def matches(self, candidate_metadata: Dict[str, Any]) -> bool:
+    def matches(self, candidate_metadata: dict[str, Any]) -> bool:
         """Check if this policy applies to a candidate."""
         if not self.enabled:
             return False
@@ -75,9 +77,7 @@ class PolicyRule:
         if not self.target_groups:
             return True
 
-        candidate_group = (
-            candidate_metadata.get("social_category", "general")
-        ).lower()
+        candidate_group = (candidate_metadata.get("social_category", "general")).lower()
 
         return candidate_group in [g.lower() for g in self.target_groups]
 
@@ -85,6 +85,7 @@ class PolicyRule:
 @dataclass
 class PolicyApplication:
     """Result of applying a policy to a single candidate."""
+
     policy_name: str
     action: PolicyAction
     adjustment: float = 0.0
@@ -156,7 +157,7 @@ class PolicyEngine:
 
     def __init__(
         self,
-        rules: Optional[List[PolicyRule]] = None,
+        rules: list[PolicyRule] | None = None,
         use_defaults: bool = True,
         max_total_boost: float = 0.25,
     ) -> None:
@@ -168,7 +169,7 @@ class PolicyEngine:
             use_defaults: Whether to include default PM Internship policies.
             max_total_boost: Maximum cumulative boost that can be applied.
         """
-        self._rules: List[PolicyRule] = []
+        self._rules: list[PolicyRule] = []
         self._max_total_boost = max_total_boost
 
         if use_defaults:
@@ -197,16 +198,16 @@ class PolicyEngine:
             logger.info("Removed policy rule: %s", name)
         return removed
 
-    def get_rules(self) -> List[PolicyRule]:
+    def get_rules(self) -> list[PolicyRule]:
         """Return all active rules."""
         return [r for r in self._rules if r.enabled]
 
     def apply(
         self,
-        candidate_metadata: Dict[str, Any],
+        candidate_metadata: dict[str, Any],
         original_score: float,
-        context: Optional[Dict[str, Any]] = None,
-    ) -> tuple[float, List[PolicyApplication]]:
+        context: dict[str, Any] | None = None,
+    ) -> tuple[float, list[PolicyApplication]]:
         """
         Apply all matching policies to a candidate's score.
 
@@ -219,7 +220,7 @@ class PolicyEngine:
             Tuple of (adjusted_score, list_of_applications).
         """
         ctx = context or {}
-        applications: List[PolicyApplication] = []
+        applications: list[PolicyApplication] = []
         total_boost = 0.0
         rejected = False
 
@@ -241,51 +242,61 @@ class PolicyEngine:
             if rule.action == PolicyAction.REJECT:
                 if original_score < rule.threshold:
                     rejected = True
-                    applications.append(PolicyApplication(
-                        policy_name=rule.name,
-                        action=rule.action,
-                        reason=f"Score {original_score:.3f} below threshold {rule.threshold:.3f}",
-                    ))
+                    applications.append(
+                        PolicyApplication(
+                            policy_name=rule.name,
+                            action=rule.action,
+                            reason=f"Score {original_score:.3f} below threshold {rule.threshold:.3f}",
+                        )
+                    )
                     break
 
             elif rule.action == PolicyAction.BOOST_SCORE:
                 if total_boost + rule.boost_amount <= self._max_total_boost:
                     total_boost += rule.boost_amount
-                    applications.append(PolicyApplication(
-                        policy_name=rule.name,
-                        action=rule.action,
-                        adjustment=rule.boost_amount,
-                        reason=f"{rule.policy_type.value} boost for {rule.target_groups or 'all'}",
-                    ))
+                    applications.append(
+                        PolicyApplication(
+                            policy_name=rule.name,
+                            action=rule.action,
+                            adjustment=rule.boost_amount,
+                            reason=f"{rule.policy_type.value} boost for {rule.target_groups or 'all'}",
+                        )
+                    )
 
             elif rule.action == PolicyAction.REDUCE_SCORE:
                 reduction = min(rule.boost_amount, original_score + total_boost - 0.01)
                 if reduction > 0:
                     total_boost -= reduction
-                    applications.append(PolicyApplication(
-                        policy_name=rule.name,
-                        action=rule.action,
-                        adjustment=-reduction,
-                        reason=f"{rule.policy_type.value} reduction",
-                    ))
+                    applications.append(
+                        PolicyApplication(
+                            policy_name=rule.name,
+                            action=rule.action,
+                            adjustment=-reduction,
+                            reason=f"{rule.policy_type.value} reduction",
+                        )
+                    )
 
             elif rule.action == PolicyAction.GUARANTEE_SLOT:
-                applications.append(PolicyApplication(
-                    policy_name=rule.name,
-                    action=rule.action,
-                    reason=f"Quota: {rule.quota_fraction:.1%} minimum",
-                ))
+                applications.append(
+                    PolicyApplication(
+                        policy_name=rule.name,
+                        action=rule.action,
+                        reason=f"Quota: {rule.quota_fraction:.1%} minimum",
+                    )
+                )
 
             elif rule.custom_fn:
                 adjustment = rule.custom_fn(candidate_metadata, original_score, ctx)
                 if adjustment != 0:
                     total_boost += adjustment
-                    applications.append(PolicyApplication(
-                        policy_name=rule.name,
-                        action=PolicyAction.BOOST_SCORE if adjustment > 0 else PolicyAction.REDUCE_SCORE,
-                        adjustment=adjustment,
-                        reason="Custom policy",
-                    ))
+                    applications.append(
+                        PolicyApplication(
+                            policy_name=rule.name,
+                            action=PolicyAction.BOOST_SCORE if adjustment > 0 else PolicyAction.REDUCE_SCORE,
+                            adjustment=adjustment,
+                            reason="Custom policy",
+                        )
+                    )
 
         if rejected:
             return 0.0, applications
@@ -295,15 +306,15 @@ class PolicyEngine:
 
     def apply_batch(
         self,
-        candidates: List[Dict[str, Any]],
-        scores: List[float],
-        context: Optional[Dict[str, Any]] = None,
-    ) -> tuple[List[float], List[List[PolicyApplication]]]:
+        candidates: list[dict[str, Any]],
+        scores: list[float],
+        context: dict[str, Any] | None = None,
+    ) -> tuple[list[float], list[list[PolicyApplication]]]:
         """Apply policies to a batch of candidates."""
         adjusted_scores = []
         all_applications = []
 
-        for cand, score in zip(candidates, scores):
+        for cand, score in zip(candidates, scores, strict=False):
             adjusted, apps = self.apply(cand, score, context)
             adjusted_scores.append(adjusted)
             all_applications.append(apps)
@@ -312,16 +323,16 @@ class PolicyEngine:
 
     def evaluate_policies(
         self,
-        candidates: List[Dict[str, Any]],
-        allocations: List[Dict[str, Any]],
-    ) -> Dict[str, Any]:
+        candidates: list[dict[str, Any]],
+        allocations: list[dict[str, Any]],
+    ) -> dict[str, Any]:
         """
         Evaluate the impact of current policies on allocations.
 
         Returns a summary of how many candidates were affected
         by each policy and the total score adjustment.
         """
-        policy_impact: Dict[str, Dict[str, Any]] = {}
+        policy_impact: dict[str, dict[str, Any]] = {}
 
         for rule in self._rules:
             if not rule.enabled:
@@ -330,7 +341,7 @@ class PolicyEngine:
             affected = 0
             total_adjustment = 0.0
 
-            for cand, alloc in zip(candidates, allocations):
+            for cand, alloc in zip(candidates, allocations, strict=False):
                 if not alloc.get("is_allocated", False):
                     continue
                 if rule.matches(cand):
@@ -341,9 +352,7 @@ class PolicyEngine:
                 "type": rule.policy_type.value,
                 "affected_count": affected,
                 "total_adjustment": round(total_adjustment, 4),
-                "average_adjustment": round(
-                    total_adjustment / affected if affected > 0 else 0.0, 4
-                ),
+                "average_adjustment": round(total_adjustment / affected if affected > 0 else 0.0, 4),
             }
 
         return policy_impact
