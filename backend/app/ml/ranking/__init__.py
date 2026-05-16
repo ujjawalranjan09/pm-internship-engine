@@ -14,11 +14,12 @@ from .explainer import MatchExplainer
 from .heuristic_scorer import HeuristicScorer
 from .ml_ranker import MLRanker
 from .optimizer import AllocationOptimizer
-from .reranker import Reranker
+from .reranker import FairnessReranker, Reranker
 
 __all__ = [
     "HeuristicScorer",
     "MLRanker",
+    "FairnessReranker",
     "Reranker",
     "MatchExplainer",
     "AllocationOptimizer",

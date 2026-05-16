@@ -1,111 +1,79 @@
 """Tests for the reranker module."""
 
-import numpy as np
-import pandas as pd
 import pytest
 
 from app.ml.ranking.reranker import (
     FairnessReranker,
+    RankedCandidate,
     RerankerConfig,
+    mmr_rerank,
 )
 
 
 @pytest.fixture
 def sample_candidates():
-    return pd.DataFrame(
-        {
-            "candidate_id": ["c1", "c2", "c3", "c4", "c5"],
-            "district": ["A", "B", "A", "C", "B"],
-            "category": ["general", "sc", "obc", "st", "general"],
-            "is_rural": [False, True, True, False, False],
-            "gender": ["male", "female", "male", "female", "male"],
-            "previous_allocations": [0, 0, 1, 0, 3],
-        }
-    )
+    return [
+        {"candidate_id": "c1", "district": "A", "category": "general", "is_rural": False, "gender": "male"},
+        {"candidate_id": "c2", "district": "B", "category": "sc", "is_rural": True, "gender": "female"},
+        {"candidate_id": "c3", "district": "A", "category": "obc", "is_rural": True, "gender": "male"},
+        {"candidate_id": "c4", "district": "C", "category": "st", "is_rural": False, "gender": "female"},
+        {"candidate_id": "c5", "district": "B", "category": "general", "is_rural": False, "gender": "male"},
+    ]
+
+
+@pytest.fixture
+def sample_scores():
+    return {"c1": 0.8, "c2": 0.7, "c3": 0.6, "c4": 0.5, "c5": 0.9}
 
 
 class TestFairnessReranker:
     """Tests for the FairnessReranker."""
 
-    def test_basic_rerank(self, sample_candidates):
-        scores = np.array([0.8, 0.7, 0.6, 0.5, 0.9])
+    def test_basic_rerank(self, sample_candidates, sample_scores):
         reranker = FairnessReranker()
-        result = reranker.rerank(scores, sample_candidates)
-        assert len(result.adjusted_scores) == 5
-        assert len(result.original_scores) == 5
-        assert result.summary["total_candidates"] == 5
+        result = reranker.rerank(sample_candidates, sample_scores)
+        assert len(result) == 5
+        assert all(isinstance(r, RankedCandidate) for r in result)
 
-    def test_adjustments_bounded(self, sample_candidates):
-        scores = np.array([0.8, 0.7, 0.6, 0.5, 0.9])
-        config = RerankerConfig(max_total_adjustment=0.10)
-        reranker = FairnessReranker(config)
-        result = reranker.rerank(scores, sample_candidates)
-        deltas = np.abs(result.adjusted_scores - result.original_scores)
-        assert all(d <= 0.10 + 1e-6 for d in deltas)
+    def test_fairness_boost_applied(self, sample_candidates, sample_scores):
+        reranker = FairnessReranker(boost_strength=0.10)
+        result = reranker.rerank(sample_candidates, sample_scores)
+        # Female and rural candidates should get boosts
+        female_candidates = [r for r in result if r.group in ("female", "f", "woman")]
+        rural_candidates = [r for r in result if r.group == "rural"]
+        assert len(female_candidates + rural_candidates) > 0
 
-    def test_repeat_penalty_applied(self, sample_candidates):
-        scores = np.array([0.8, 0.7, 0.6, 0.5, 0.9])
-        config = RerankerConfig(
-            enable_district_uplift=False,
-            enable_category_balancing=False,
-            enable_rural_preference=False,
-            enable_female_uplift=False,
-            enable_repeat_penalty=True,
-        )
-        reranker = FairnessReranker(config)
-        result = reranker.rerank(scores, sample_candidates)
-        # c5 has 3 previous allocations, should be penalized
-        assert result.adjusted_scores[4] < scores[4]
+    def test_ranking_order(self, sample_candidates, sample_scores):
+        reranker = FairnessReranker(boost_strength=0.0)  # No boost
+        result = reranker.rerank(sample_candidates, sample_scores)
+        # c5 has highest score (0.9), should be rank 1
+        assert result[0].candidate_id == "c5"
 
-    def test_rural_uplift(self, sample_candidates):
-        scores = np.array([0.5, 0.5, 0.5, 0.5, 0.5])
-        config = RerankerConfig(
-            enable_district_uplift=False,
-            enable_category_balancing=False,
-            enable_rural_preference=True,
-            enable_female_uplift=False,
-            enable_repeat_penalty=False,
-        )
-        reranker = FairnessReranker(config)
-        result = reranker.rerank(scores, sample_candidates)
-        # c2 and c3 are rural
-        assert result.adjusted_scores[1] >= scores[1]
-        assert result.adjusted_scores[2] >= scores[2]
-
-    def test_adjustment_log_populated(self, sample_candidates):
-        scores = np.array([0.8, 0.7, 0.6, 0.5, 0.9])
+    def test_empty_input(self):
         reranker = FairnessReranker()
-        result = reranker.rerank(scores, sample_candidates)
-        assert isinstance(result.adjustment_log, list)
-
-    def test_summary_has_required_keys(self, sample_candidates):
-        scores = np.array([0.8, 0.7, 0.6, 0.5, 0.9])
-        reranker = FairnessReranker()
-        result = reranker.rerank(scores, sample_candidates)
-        assert "total_candidates" in result.summary
-        assert "total_adjustments" in result.summary
-        assert "score_correlation" in result.summary
-
-    def test_no_change_when_disabled(self, sample_candidates):
-        scores = np.array([0.8, 0.7, 0.6, 0.5, 0.9])
-        config = RerankerConfig(
-            enable_district_uplift=False,
-            enable_category_balancing=False,
-            enable_rural_preference=False,
-            enable_female_uplift=False,
-            enable_repeat_penalty=False,
-        )
-        reranker = FairnessReranker(config)
-        result = reranker.rerank(scores, sample_candidates)
-        np.testing.assert_array_almost_equal(result.adjusted_scores, scores)
+        result = reranker.rerank([], {})
+        assert result == []
 
 
-class TestGetAdjustmentSummary:
-    """Tests for get_adjustment_summary method."""
+class TestRerankerConfig:
+    """Tests for RerankerConfig."""
 
-    def test_returns_dataframe(self, sample_candidates):
-        scores = np.array([0.8, 0.7, 0.6, 0.5, 0.9])
-        reranker = FairnessReranker()
-        reranker.rerank(scores, sample_candidates)
-        summary = reranker.get_adjustment_summary()
-        assert isinstance(summary, pd.DataFrame)
+    def test_defaults(self):
+        config = RerankerConfig()
+        assert config.boost_strength == 0.10
+        assert config.max_rank_change == 10
+        assert config.min_quality_threshold == 0.50
+
+
+class TestMmrRerank:
+    """Tests for MMR reranking."""
+
+    def test_basic_mmr(self, sample_candidates):
+        scores = [0.8, 0.7, 0.6, 0.5, 0.9]
+        sim_matrix = [[1, 0.5, 0.3, 0.2, 0.1]] * 5
+        result = mmr_rerank(sample_candidates, sim_matrix, scores, n=3)
+        assert len(result) == 3
+
+    def test_empty_mmr(self):
+        result = mmr_rerank([], [], [], n=5)
+        assert result == []

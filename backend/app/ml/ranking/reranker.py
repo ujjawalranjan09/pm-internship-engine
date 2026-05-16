@@ -36,6 +36,16 @@ class RankedCandidate:
 
 
 @dataclass
+class RerankerConfig:
+    """Configuration for the reranker."""
+
+    target_fractions: dict[str, float] = field(default_factory=lambda: {"female": 0.33, "rural": 0.20})
+    boost_strength: float = 0.10
+    max_rank_change: int = 10
+    min_quality_threshold: float = 0.50
+
+
+@dataclass
 class FairnessReranker:
     """
     Diversity-aware reranker that boosts under-represented groups.
@@ -86,6 +96,9 @@ class FairnessReranker:
                 )
             )
         return result
+
+
+Reranker = FairnessReranker
 
 
 def mmr_rerank(

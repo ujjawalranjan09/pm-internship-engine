@@ -31,8 +31,8 @@ from app.ml.feature_engineering.feature_extractor import FeatureExtractor, Featu
 from app.ml.ranking.explainer import MatchExplainer, MatchExplanation
 from app.ml.ranking.heuristic_scorer import HeuristicScorer
 from app.ml.ranking.ml_ranker import MLRanker
-from app.ml.ranking.optimizer import AllocationOptimizer, OptimizationResult
-from app.ml.ranking.reranker import Reranker, RerankerConfig
+from app.ml.ranking.optimizer import AllocationOptimizer, OptimizedAllocationResult
+from app.ml.ranking.reranker import FairnessReranker, RerankerConfig
 
 logger = logging.getLogger(__name__)
 
@@ -86,7 +86,7 @@ class PipelineResult:
     """Full result of a pipeline run."""
 
     allocations: list[dict[str, Any]] = field(default_factory=list)
-    optimization_result: OptimizationResult | None = None
+    optimization_result: OptimizedAllocationResult | None = None
     stage_metrics: list[PipelineStageResult] = field(default_factory=list)
     total_duration_seconds: float = 0.0
     total_candidates: int = 0
@@ -113,7 +113,7 @@ class MatchingPipeline:
         self._feature_extractor = FeatureExtractor()
         self._heuristic_scorer = HeuristicScorer()
         self._ml_ranker: MLRanker | None = None
-        self._reranker = Reranker(self.config.reranker_config)
+        self._reranker = FairnessReranker()
         self._optimizer = AllocationOptimizer(
             time_limit_seconds=self.config.optimizer_time_limit,
             use_greedy_fallback=self.config.use_greedy_fallback,
@@ -434,7 +434,7 @@ class MatchingPipeline:
         opportunities: list[dict[str, Any]],
         constraints: dict[str, Any] | None,
         blocked_pairs: set[tuple[str, str]] | None,
-    ) -> OptimizationResult:
+    ) -> OptimizedAllocationResult:
         """Stage 5: Constrained optimization."""
         start = time.time()
 
@@ -475,7 +475,7 @@ class MatchingPipeline:
 
     def _generate_explanations(
         self,
-        opt_result: OptimizationResult,
+        opt_result: OptimizedAllocationResult,
         feature_matrix: np.ndarray,
         candidate_ids: list[str],
         opportunity_ids: list[str],
@@ -503,7 +503,7 @@ class MatchingPipeline:
 
     def _build_output(
         self,
-        opt_result: OptimizationResult,
+        opt_result: OptimizedAllocationResult,
         explanations: dict[str, MatchExplanation],
     ) -> list[dict[str, Any]]:
         """Build the final allocation output list."""

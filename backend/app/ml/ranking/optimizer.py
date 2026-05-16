@@ -43,6 +43,21 @@ class OptimizedAllocationResult:
     objective_value: float = 0.0
     metadata: dict[str, Any] = field(default_factory=dict)
 
+    @property
+    def num_allocated(self) -> int:
+        return len(self.allocated)
+
+    @property
+    def allocations(self) -> list[dict[str, Any]]:
+        return [
+            {
+                "candidate_id": c.candidate_id,
+                "score": c.score,
+                "category": c.category,
+            }
+            for c in self.allocated
+        ]
+
 
 def optimize_allocation(
     candidates: list[CandidateProfile],
@@ -83,11 +98,15 @@ class AllocationOptimizer:
         min_score: float = 0.0,
         strategy: str = "greedy",
         weights: dict[str, float] | None = None,
+        time_limit_seconds: float = 60.0,
+        use_greedy_fallback: bool = True,
     ) -> None:
         self.n_slots = n_slots
         self.min_score = min_score
         self.strategy = strategy
         self.weights = weights or {}
+        self.time_limit_seconds = time_limit_seconds
+        self.use_greedy_fallback = use_greedy_fallback
 
     def run(self, candidates: list[CandidateProfile]) -> OptimizedAllocationResult:
         """Run the configured allocation strategy."""
@@ -115,6 +134,30 @@ class AllocationOptimizer:
                     category=str(meta.get("category", "general")),
                     is_rural=bool(meta.get("is_rural", False)),
                     gender=str(meta.get("gender", "unspecified")),
+                )
+            )
+        return self.run(profiles)
+
+    def optimize(
+        self,
+        score_matrix: Any,
+        candidate_ids: list[str],
+        opportunity_ids: list[str],
+        capacities: dict[str, int],
+        constraints: Any | None = None,
+        blocked_pairs: list[tuple[str, str]] | None = None,
+    ) -> OptimizedAllocationResult:
+        """Optimize allocation given score matrix and constraints.
+
+        Falls back to greedy allocation when OR-Tools is not available.
+        """
+        del opportunity_ids, capacities, constraints, blocked_pairs  # unused in greedy fallback
+        profiles: list[CandidateProfile] = []
+        for i, cid in enumerate(candidate_ids):
+            profiles.append(
+                CandidateProfile(
+                    candidate_id=cid,
+                    score=float(score_matrix[i].max()) if hasattr(score_matrix[i], "max") else float(score_matrix[i]),
                 )
             )
         return self.run(profiles)

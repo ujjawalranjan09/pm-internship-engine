@@ -12,8 +12,8 @@ Submodules:
     - guardrails: Quality-fairness tradeoff monitoring
 """
 
-from .fairness_metrics import FairnessMetrics
+from .fairness_metrics import FairnessMetricsCalculator, FairnessMetricsReport
 from .guardrails import FairnessGuardrails
 from .policy_engine import PolicyEngine
 
-__all__ = ["FairnessMetrics", "PolicyEngine", "FairnessGuardrails"]
+__all__ = ["FairnessMetricsReport", "FairnessMetricsCalculator", "PolicyEngine", "FairnessGuardrails"]
