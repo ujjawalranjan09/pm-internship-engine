@@ -1,12 +1,22 @@
 """SQLAlchemy ORM model for allocation (batch) cycles."""
 
 from datetime import datetime
+from enum import Enum
 from typing import Any
 
-from sqlalchemy import DateTime, Integer, String
+from sqlalchemy import DateTime, Integer, JSON, String
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from sqlalchemy.sql import func
+
+
+class CycleStatus(str, Enum):
+    """Status values for allocation cycles."""
+
+    DRAFT = "draft"
+    ACTIVE = "active"
+    COMPLETED = "completed"
+    CANCELLED = "cancelled"
 
 
 class Base(DeclarativeBase):
@@ -22,7 +32,10 @@ class AllocationCycle(Base):
     total_candidates: Mapped[int] = mapped_column(Integer, default=0)
     total_opportunities: Mapped[int] = mapped_column(Integer, default=0)
     total_matches: Mapped[int] = mapped_column(Integer, default=0)
-    cycle_metadata: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    cycle_metadata: Mapped[dict[str, Any] | None] = mapped_column(
+        JSONB().with_variant(JSON(), "sqlite"),
+        nullable=True,
+    )
     started_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())

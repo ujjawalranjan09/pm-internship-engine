@@ -66,7 +66,7 @@ class RerankedCandidate:
 
 class Reranker:
     """
-    Fairness-aware re-ranker.
+    Fairness-aware re-ranker (also exposed as FairnessReranker for backward compatibility).
 
     Takes the output of the heuristic/ML scorers and applies fairness
     adjustments to promote equitable representation while preserving
@@ -274,3 +274,7 @@ class Reranker:
             r.rank = i + 1
 
         return top + remaining
+
+
+# Backward-compatibility alias
+FairnessReranker = Reranker
