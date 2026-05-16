@@ -122,7 +122,7 @@ class FairnessGuardrails:
                     GuardrailViolation(
                         guardrail_name="score_compression",
                         severity="warning",
-                        message=(f"Score variance reduced by {(1 - std_ratio):.0%} " f"(std ratio: {std_ratio:.2f})."),
+                        message=(f"Score variance reduced by {(1 - std_ratio):.0%} (std ratio: {std_ratio:.2f})."),
                         current_value=std_ratio,
                         threshold=self.config.min_score_std_ratio,
                     )

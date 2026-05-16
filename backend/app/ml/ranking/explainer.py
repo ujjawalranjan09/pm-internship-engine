@@ -252,7 +252,7 @@ def explain_match(
     cand_text = (
         f"Dear {cname},\n\nYou have a {quality} match ({final_score:.0%}) for {title} at {org}.\n\n"
         "Your profile was evaluated across multiple dimensions:\n"
-        + "\n".join(f"  {k.replace('_',' ').title()}: {v:.0%}" for k, v in scores.items())
+        + "\n".join(f"  {k.replace('_', ' ').title()}: {v:.0%}" for k, v in scores.items())
         + "\n\nWe encourage you to review the opportunity details on your dashboard."
     )
     admin_text = (
