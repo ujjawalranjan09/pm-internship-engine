@@ -14,7 +14,6 @@ from app.api.v1 import (
     opportunities,
 )
 from app.core.config import settings
-from app.core.database import Base, engine
 from app.core.events import shutdown_handler, startup_handler
 
 
