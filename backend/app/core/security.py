@@ -1,6 +1,7 @@
 """JWT authentication, password hashing, and role-based access control."""
 
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
@@ -18,9 +19,14 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_PREFIX}/auth/login")
 
 
-def hash_password(password: str) -> str:
+def get_password_hash(password: str) -> str:
     """Hash a plaintext password using bcrypt."""
     return pwd_context.hash(password)
+
+
+def hash_password(password: str) -> str:
+    """Backward-compatible alias for hashing a plaintext password."""
+    return get_password_hash(password)
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
@@ -28,33 +34,33 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     return pwd_context.verify(plain_password, hashed_password)
 
 
-def create_access_token(data: dict, expires_delta: timedelta | None = None) -> str:
+def create_access_token(data: dict[str, Any], expires_delta: timedelta | None = None) -> str:
     """Create a JWT access token."""
-    to_encode = data.copy()
+    to_encode: dict[str, Any] = data.copy()
     expire = datetime.now(UTC) + (expires_delta or timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES))
     to_encode.update({"exp": expire, "type": "access"})
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
 
-def create_refresh_token(data: dict) -> str:
+def create_refresh_token(data: dict[str, Any]) -> str:
     """Create a JWT refresh token with longer expiry."""
-    to_encode = data.copy()
+    to_encode: dict[str, Any] = data.copy()
     expire = datetime.now(UTC) + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
     to_encode.update({"exp": expire, "type": "refresh"})
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
 
-def decode_token(token: str) -> dict:
+def decode_token(token: str) -> dict[str, Any]:
     """Decode and validate a JWT token."""
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
-        return payload
-    except JWTError:
+        return dict(payload)
+    except JWTError as exc:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Could not validate credentials",
             headers={"WWW-Authenticate": "Bearer"},
-        ) from None
+        ) from exc
 
 
 async def get_current_user(
@@ -70,12 +76,14 @@ async def get_current_user(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid token type",
         )
-    user_id: str = payload.get("sub")
-    if user_id is None:
+
+    user_id = str(payload.get("sub") or "")
+    if not user_id:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Could not validate credentials",
         )
+
     result = await db.execute(select(User).where(User.id == int(user_id)))
     user = result.scalar_one_or_none()
     if user is None:
