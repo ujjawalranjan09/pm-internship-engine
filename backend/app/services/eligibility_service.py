@@ -1,132 +1,58 @@
-"""Eligibility service for hard-filter evaluation."""
+"""Validates candidate eligibility for a given opportunity."""
 
 import logging
+from dataclasses import dataclass, field
+from typing import Any
 
-from app.models.candidate import CandidateProfile
+from app.models.candidate import Candidate
 from app.models.opportunity import Opportunity
 
 logger = logging.getLogger(__name__)
 
 
+@dataclass
+class EligibilityResult:
+    eligible: bool
+    reasons: list[str] = field(default_factory=list)
+    details: dict[str, Any] = field(default_factory=dict)
+
+
 class EligibilityService:
-    """Evaluates hard eligibility criteria that candidates must meet.
+    """Checks hard eligibility constraints before scoring."""
 
-    These are binary pass/fail checks that happen before scoring.
-    A candidate who fails any hard filter is excluded from matching.
-    """
+    def check(self, candidate: Candidate, opportunity: Opportunity) -> EligibilityResult:
+        reasons: list[str] = []
+        details: dict[str, Any] = {}
 
-    def is_eligible(self, candidate: CandidateProfile, opportunity: Opportunity) -> bool:
-        """Check if a candidate meets all hard eligibility criteria for an opportunity.
+        # Qualification check
+        if opportunity.required_qualifications:
+            cand_qual = (candidate.highest_qualification or "").lower()
+            matched = any(q.lower() in cand_qual for q in opportunity.required_qualifications)
+            details["qualification_match"] = matched
+            if not matched:
+                reasons.append("Qualification does not meet requirements")
 
-        Args:
-            candidate: The candidate profile to evaluate.
-            opportunity: The opportunity with eligibility criteria.
+        # CGPA check
+        if opportunity.min_cgpa is not None and candidate.cgpa is not None:
+            if candidate.cgpa < float(opportunity.min_cgpa):
+                reasons.append(f"CGPA {candidate.cgpa} below minimum {opportunity.min_cgpa}")
+                details["cgpa_check"] = False
+            else:
+                details["cgpa_check"] = True
 
-        Returns:
-            True if the candidate is eligible, False otherwise.
-        """
-        criteria = opportunity.eligibility_criteria or {}
+        # Capacity check
+        capacity_available = opportunity.filled_seats < opportunity.total_seats
+        details["capacity_available"] = capacity_available
+        if not capacity_available:
+            reasons.append("No seats available")
 
-        # Check minimum education
-        if not self._check_education(candidate, criteria):
-            logger.debug(
-                "Candidate %d failed education check for opportunity %d",
-                candidate.id,
-                opportunity.id,
-            )
-            return False
+        eligible = len(reasons) == 0
+        return EligibilityResult(eligible=eligible, reasons=reasons, details=details)
 
-        # Check state/district restrictions
-        if not self._check_location_eligibility(candidate, criteria):
-            logger.debug(
-                "Candidate %d failed location check for opportunity %d",
-                candidate.id,
-                opportunity.id,
-            )
-            return False
-
-        # Check social category restrictions (if any reservation quotas)
-        if not self._check_category_eligibility(candidate, criteria):
-            logger.debug(
-                "Candidate %d failed category check for opportunity %d",
-                candidate.id,
-                opportunity.id,
-            )
-            return False
-
-        # Check minimum profile completion
-        min_completion = criteria.get("min_profile_completion", 0.0)
-        if candidate.profile_completion_score < min_completion:
-            logger.debug(
-                "Candidate %d profile completion %.2f < %.2f for opportunity %d",
-                candidate.id,
-                candidate.profile_completion_score,
-                min_completion,
-                opportunity.id,
-            )
-            return False
-
-        return True
-
-    def _check_education(self, candidate: CandidateProfile, criteria: dict) -> bool:
-        """Check if candidate meets education requirements."""
-        min_education = criteria.get("min_education")
-        if not min_education:
-            return True
-
-        if not candidate.education:
-            return False
-
-        edu_hierarchy = {
-            "10th": 1,
-            "12th": 2,
-            "diploma": 3,
-            "bachelors": 4,
-            "b.tech": 4,
-            "b.sc": 4,
-            "b.com": 4,
-            "b.a": 4,
-            "masters": 5,
-            "m.tech": 5,
-            "m.sc": 5,
-            "mba": 5,
-            "phd": 6,
-        }
-
-        candidate_degree = candidate.education.get("degree", "").lower()
-        candidate_level = edu_hierarchy.get(candidate_degree, 0)
-        required_level = edu_hierarchy.get(min_education.lower(), 0)
-
-        return candidate_level >= required_level
-
-    def _check_location_eligibility(self, candidate: CandidateProfile, criteria: dict) -> bool:
-        """Check if candidate meets location-based eligibility."""
-        allowed_states = criteria.get("allowed_states")
-        if allowed_states and candidate.state and candidate.state.lower() not in [s.lower() for s in allowed_states]:
-            return False
-
-        excluded_states = criteria.get("excluded_states")
-        if excluded_states and candidate.state and candidate.state.lower() in [s.lower() for s in excluded_states]:
-            return False
-
-        allowed_districts = criteria.get("allowed_districts")
-        if (  # noqa: SIM103
-            allowed_districts
-            and candidate.district
-            and candidate.district.lower() not in [d.lower() for d in allowed_districts]
-        ):
-            return False
-
-        return True
-
-    def _check_category_eligibility(self, candidate: CandidateProfile, criteria: dict) -> bool:
-        """Check if candidate meets social category eligibility."""
-        required_categories = criteria.get("required_social_categories")
-        if required_categories:
-            if not candidate.social_category:
-                return False
-            if candidate.social_category.lower() not in [c.lower() for c in required_categories]:
-                return False
-
-        rural_only = criteria.get("rural_only", False)
-        return not (rural_only and not candidate.is_rural)
+    def batch_check(
+        self,
+        candidate: Candidate,
+        opportunities: list[Opportunity],
+    ) -> list[tuple[Opportunity, EligibilityResult]]:
+        """Return (opportunity, result) pairs for all opportunities."""
+        return [(opp, self.check(candidate, opp)) for opp in opportunities]

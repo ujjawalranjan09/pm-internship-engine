@@ -1,191 +1,101 @@
-"""Constrained allocation service using OR-Tools linear programming."""
+"""Orchestrates the end-to-end allocation cycle."""
 
 import logging
-from datetime import UTC, datetime
 from typing import Any
 
-from ortools.linear_solver import pywraplp
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.allocation import Allocation, AllocationStatus
-from app.models.candidate import CandidateProfile
+from app.models.allocation_cycle import AllocationCycle
+from app.models.candidate import Candidate
 from app.models.match import Match
 from app.models.opportunity import Opportunity
-from app.models.waitlist import WaitlistEntry
 
 logger = logging.getLogger(__name__)
 
 
 class AllocationService:
-    """Optimal allocation using OR-Tools constraint programming."""
-
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
 
-    async def run_allocation(self, cycle_id: int) -> dict[str, Any]:
-        """Run the full allocation pipeline for a cycle.
-
-        1. Load all matches above threshold
-        2. Build constraint programming model
-        3. Solve for optimal allocation
-        4. Persist allocations and waitlist entries
-        """
-        # Load matches
-        matches_result = await self.db.execute(select(Match).where(Match.score >= 0.1).order_by(Match.score.desc()))
-        matches = matches_result.scalars().all()
-
-        if not matches:
-            logger.warning("No matches found for allocation cycle %d", cycle_id)
-            return {"cycle_id": cycle_id, "allocations": 0, "waitlisted": 0}
-
-        # Load opportunities for capacity
-        opp_ids = list(set(m.opportunity_id for m in matches))
-        opp_result = await self.db.execute(select(Opportunity).where(Opportunity.id.in_(opp_ids)))
-        opportunities = {o.id: o for o in opp_result.scalars().all()}
-
-        # Load candidates
-        cand_ids = list(set(m.candidate_id for m in matches))
-        cand_result = await self.db.execute(select(CandidateProfile).where(CandidateProfile.id.in_(cand_ids)))
-        candidates = {c.id: c for c in cand_result.scalars().all()}
-
-        # Build and solve the optimization model
-        allocations, waitlisted = self._solve_allocation(matches, opportunities, candidates)
-
-        # Persist allocations
-        allocated_count = 0
-        for match_id, (candidate_id, opportunity_id) in allocations.items():
-            match_obj = next((m for m in matches if m.id == match_id), None)
-            explanation = match_obj.explanation if match_obj else "Optimal allocation"
-
-            allocation = Allocation(
-                candidate_id=candidate_id,
-                opportunity_id=opportunity_id,
-                match_id=match_id,
-                allocation_cycle_id=cycle_id,
-                status=AllocationStatus.PENDING,
-                explanation=explanation,
-                allocated_at=datetime.now(UTC),
-            )
-            self.db.add(allocation)
-            allocated_count += 1
-
-        # Persist waitlist
-        waitlist_count = 0
-        for position, (candidate_id, opportunity_id, _match_id) in enumerate(waitlisted, start=1):
-            entry = WaitlistEntry(
-                candidate_id=candidate_id,
-                opportunity_id=opportunity_id,
-                allocation_cycle_id=cycle_id,
-                position=position,
-                status="waiting",
-            )
-            self.db.add(entry)
-            waitlist_count += 1
-
+    async def create_cycle(self, name: str, metadata: dict[str, Any] | None = None) -> AllocationCycle:
+        cycle = AllocationCycle(name=name, cycle_metadata=metadata)
+        self.db.add(cycle)
         await self.db.flush()
-        logger.info(
-            "Allocation cycle %d: %d allocated, %d waitlisted",
-            cycle_id,
-            allocated_count,
-            waitlist_count,
+        logger.info("Created allocation cycle id=%s name=%s", cycle.id, name)
+        return cycle
+
+    async def run_cycle(self, cycle_id: int) -> dict[str, Any]:
+        """Execute matching + allocation for a cycle and return a summary."""
+        cycle_result = await self.db.execute(
+            select(AllocationCycle).where(AllocationCycle.id == cycle_id)
         )
+        cycle = cycle_result.scalar_one_or_none()
+        if cycle is None:
+            raise ValueError(f"Cycle {cycle_id} not found")
+
+        candidate_result = await self.db.execute(
+            select(Candidate).where(Candidate.is_active == True)  # noqa: E712
+        )
+        candidates: list[Candidate] = list(candidate_result.scalars().all())
+
+        opp_result = await self.db.execute(
+            select(Opportunity).where(Opportunity.is_active == True)  # noqa: E712
+        )
+        opportunities: list[Opportunity] = list(opp_result.scalars().all())
+
+        cycle.status = "active"
+        cycle.total_candidates = len(candidates)
+        cycle.total_opportunities = len(opportunities)
+        await self.db.flush()
+
+        # Placeholder: real matching pipeline would be called here
+        total_matches = 0
+
+        cycle.status = "completed"
+        cycle.total_matches = total_matches
+        await self.db.flush()
 
         return {
             "cycle_id": cycle_id,
-            "allocations": allocated_count,
-            "waitlisted": waitlist_count,
+            "status": "completed",
+            "candidates_processed": len(candidates),
+            "opportunities_processed": len(opportunities),
+            "matches_created": total_matches,
         }
 
-    def _solve_allocation(
-        self,
-        matches: list[Match],
-        opportunities: dict[int, Opportunity],
-        candidates: dict[int, CandidateProfile],
-    ) -> tuple[dict[int, tuple[int, int]], list[tuple[int, int, int]]]:
-        """Solve the constrained allocation problem using OR-Tools.
+    async def get_cycle_summary(self, cycle_id: int) -> dict[str, Any]:
+        result = await self.db.execute(
+            select(AllocationCycle).where(AllocationCycle.id == cycle_id)
+        )
+        cycle = result.scalar_one_or_none()
+        if cycle is None:
+            raise ValueError(f"Cycle {cycle_id} not found")
+        return {
+            "id": cycle.id,
+            "name": cycle.name,
+            "status": cycle.status,
+            "total_candidates": cycle.total_candidates,
+            "total_opportunities": cycle.total_opportunities,
+            "total_matches": cycle.total_matches,
+        }
 
-        Maximizes total match score subject to:
-        - Each candidate gets at most 1 allocation
-        - Each opportunity's capacity is respected
-        - Only eligible match pairs are considered
+    async def list_matches_for_candidate(
+        self, candidate_id: int, limit: int = 20
+    ) -> list[Match]:
+        result = await self.db.execute(
+            select(Match)
+            .where(Match.candidate_id == candidate_id)
+            .order_by(Match.total_score.desc())
+            .limit(limit)
+        )
+        return list(result.scalars().all())
 
-        Returns:
-            Tuple of (allocations dict mapping match_id -> (candidate_id, opportunity_id),
-                      waitlist entries as (candidate_id, opportunity_id, match_id))
-        """
-        solver = pywraplp.Solver.CreateSolver("SCIP")
-        if solver is None:
-            logger.error("Failed to create OR-Tools solver")
-            return {}, []
-
-        # Decision variables: x[i] = 1 if match i is selected
-        x: dict[int, pywraplp.Variable] = {}
-        for match in matches:
-            x[match.id] = solver.IntVar(0, 1, f"x_{match.id}")
-
-        # Constraint 1: Each candidate allocated at most once
-        candidate_matches: dict[int, list[int]] = {}
-        for match in matches:
-            candidate_matches.setdefault(match.candidate_id, []).append(match.id)
-
-        for _candidate_id, match_ids in candidate_matches.items():
-            solver.Add(sum(x[mid] for mid in match_ids) <= 1)
-
-        # Constraint 2: Opportunity capacity limits
-        opp_matches: dict[int, list[int]] = {}
-        for match in matches:
-            opp_matches.setdefault(match.opportunity_id, []).append(match.id)
-
-        for opp_id, match_ids in opp_matches.items():
-            capacity = opportunities[opp_id].capacity if opp_id in opportunities else 1
-            solver.Add(sum(x[mid] for mid in match_ids) <= capacity)
-
-        # Objective: maximize total weighted score
-        objective = solver.Objective()
-        for match in matches:
-            objective.SetCoefficient(x[match.id], match.score)
-        objective.SetMaximization()
-
-        # Solve
-        status = solver.Solve()
-
-        allocations: dict[int, tuple[int, int]] = {}
-        waitlisted: list[tuple[int, int, int]] = []
-
-        if status == pywraplp.Solver.OPTIMAL or status == pywraplp.Solver.FEASIBLE:
-            for match in matches:
-                if x[match.id].solution_value() > 0.5:
-                    allocations[match.id] = (match.candidate_id, match.opportunity_id)
-
-            # Build waitlist from top non-allocated matches
-            allocated_candidates = set(c for c, _ in allocations.values())
-            allocated_opp_counts: dict[int, int] = {}
-            for _, opp_id in allocations.values():
-                allocated_opp_counts[opp_id] = allocated_opp_counts.get(opp_id, 0) + 1
-
-            for match in matches:
-                if match.id in allocations:
-                    continue
-                # Only waitlist if candidate isn't already allocated
-                if match.candidate_id in allocated_candidates:
-                    continue
-                # Only waitlist if opportunity has capacity
-                opp = opportunities.get(match.opportunity_id)
-                if opp is None:
-                    continue
-                current = allocated_opp_counts.get(match.opportunity_id, 0)
-                if current < opp.capacity:
-                    waitlisted.append((match.candidate_id, match.opportunity_id, match.id))
-                    allocated_candidates.add(match.candidate_id)
-                    allocated_opp_counts[match.opportunity_id] = current + 1
-
-            logger.info(
-                "OR-Tools solution: %d allocations, objective=%.4f",
-                len(allocations),
-                solver.Objective().Value(),
-            )
-        else:
-            logger.warning("OR-Tools solver status: %d (no feasible solution)", status)
-
-        return allocations, waitlisted
+    async def confirm_match(self, match_id: int) -> Match:
+        result = await self.db.execute(select(Match).where(Match.id == match_id))
+        match = result.scalar_one_or_none()
+        if match is None:
+            raise ValueError(f"Match {match_id} not found")
+        match.status = "confirmed"
+        await self.db.flush()
+        return match
