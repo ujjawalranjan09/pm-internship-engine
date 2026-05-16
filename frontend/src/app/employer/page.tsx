@@ -14,7 +14,6 @@ import {
   Plus,
   ArrowRight,
   MapPin,
-  Clock,
   CheckCircle,
 } from "lucide-react";
 
@@ -73,7 +72,7 @@ export default function EmployerDashboard() {
           <CardHeader className="flex flex-row items-center justify-between">
             <div>
               <CardTitle>My Opportunities</CardTitle>
-              <CardDescription>Internship positions you've posted</CardDescription>
+              <CardDescription>Internship positions you&apos;ve posted</CardDescription>
             </div>
             <Button size="sm">
               <Plus className="h-4 w-4 mr-1" />

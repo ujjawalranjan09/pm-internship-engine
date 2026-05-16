@@ -1,30 +1,24 @@
 "use client";
 
-import { use } from "react";
+import { use, useState } from "react";
 import Link from "next/link";
 import { useCycleDetail, useCycleResults } from "@/hooks/use-allocation";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, SortableHeader } from "@/components/ui/table";
 import { Tabs } from "@/components/ui/tabs";
-import { Separator } from "@/components/ui/separator";
 import { SkeletonCard, SkeletonTable } from "@/components/shared/skeleton";
-import { StatsCard } from "@/components/shared/stats-card";
 import { PageHeader } from "@/components/shared/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
-import { formatDate, formatNumber, cn } from "@/lib/utils";
+import { formatDate, formatNumber } from "@/lib/utils";
 import {
   ArrowLeft,
-  Users,
-  Briefcase,
   CheckCircle,
   Clock,
   BarChart3,
   Star,
-  TrendingUp,
 } from "lucide-react";
-import { useState } from "react";
 
 export default function CycleDetailPage({ params }: { params: Promise<{ cycleId: string }> }) {
   const { cycleId } = use(params);
@@ -46,7 +40,6 @@ export default function CycleDetailPage({ params }: { params: Promise<{ cycleId:
   });
 
   const waitlist = sortedResults.filter((r) => r.status === "declined");
-  const confirmed = sortedResults.filter((r) => r.status === "confirmed");
 
   if (cycleLoading) {
     return (

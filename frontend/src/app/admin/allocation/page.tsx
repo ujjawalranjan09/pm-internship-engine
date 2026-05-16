@@ -14,11 +14,10 @@ import { StatsCard } from "@/components/shared/stats-card";
 import { PageHeader } from "@/components/shared/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
 import { useToast } from "@/components/ui/toast";
-import { formatDate, formatNumber, cn } from "@/lib/utils";
+import { formatDate, formatNumber } from "@/lib/utils";
 import {
   Shuffle,
   Play,
-  Clock,
   CheckCircle,
   XCircle,
   AlertTriangle,
@@ -196,7 +195,7 @@ export default function AllocationPage() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowConfirm(false)}>Cancel</Button>
             <Button onClick={handleTrigger}>
-              <Play className="h-4 w-4 mr-2" /> Confirm & Run
+              <Play className="h-4 w-4 mr-2" /> Confirm &amp; Run
             </Button>
           </DialogFooter>
         </DialogContent>
