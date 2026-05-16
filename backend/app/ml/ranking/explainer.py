@@ -5,10 +5,6 @@ Match Explainer – Human-Readable Match Explanations
 Generates natural-language explanations for why a candidate was
 matched to an opportunity. Used for transparency, candidate
 communication, and audit trails.
-
-Output format:
-    A structured dict with a summary sentence and per-factor
-    detail lines, suitable for rendering in a UI or email.
 """
 
 from __future__ import annotations
@@ -24,13 +20,11 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class MatchExplanation:
-    """Structured explanation for a single candidate-opportunity match."""
-
     summary: str
     factors: list[dict[str, Any]] = field(default_factory=list)
     strengths: list[str] = field(default_factory=list)
     gaps: list[str] = field(default_factory=list)
-    confidence: str = "medium"  # low, medium, high
+    confidence: str = "medium"
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -42,7 +36,6 @@ class MatchExplanation:
         }
 
     def to_text(self) -> str:
-        """Plain-text version for notifications."""
         lines = [self.summary, ""]
         if self.strengths:
             lines.append("Strengths:")
@@ -56,18 +49,6 @@ class MatchExplanation:
 
 
 class MatchExplainer:
-    """
-    Generates human-readable explanations for match scores.
-
-    Examines the feature vector and score breakdown to identify
-    the top contributing factors and notable gaps.
-
-    Usage:
-        explainer = MatchExplainer()
-        explanation = explainer.explain(feature_vector, score, breakdown)
-    """
-
-    # Feature names → human-readable labels
     _LABELS = {
         "exact_skill_overlap": "Skill match",
         "weighted_skill_similarity": "Skill relevance",
@@ -84,7 +65,6 @@ class MatchExplainer:
         "text_keyword_overlap": "Keyword match",
     }
 
-    # Thresholds for strength/gap detection
     _STRENGTH_THRESHOLD = 0.70
     _GAP_THRESHOLD = 0.30
     _TOP_K_FACTORS = 5
@@ -97,31 +77,16 @@ class MatchExplainer:
         candidate_name: str | None = None,
         opportunity_title: str | None = None,
     ) -> MatchExplanation:
-        """
-        Generate a match explanation.
-
-        Args:
-            features: The feature vector for this pair.
-            score: The final match score (0-1).
-            breakdown: Optional score breakdown from the scorer.
-            candidate_name: For personalised messages.
-            opportunity_title: For personalised messages.
-
-        Returns:
-            MatchExplanation with summary, factors, strengths, gaps.
-        """
         feat_array = features.to_array()
         feature_names = FeatureVector.feature_names()
 
-        # Build factor list with contributions
-        factors = []
+        factors: list[dict[str, Any]] = []
         for name, value in zip(feature_names, feat_array, strict=False):
             label = self._LABELS.get(name, name)
             weight = 0.0
             if breakdown and name in breakdown and isinstance(breakdown[name], dict):
                 weight = breakdown[name].get("weight", 0.0)
             contribution = value * weight
-
             factors.append(
                 {
                     "feature": name,
@@ -132,11 +97,9 @@ class MatchExplainer:
                 }
             )
 
-        # Sort by contribution descending
         factors.sort(key=lambda f: -f["contribution"])
         top_factors = factors[: self._TOP_K_FACTORS]
 
-        # Identify strengths and gaps
         strengths = []
         gaps = []
         for f in factors:
@@ -147,7 +110,6 @@ class MatchExplainer:
             elif value <= self._GAP_THRESHOLD:
                 gaps.append(f"{label} ({value:.0%})")
 
-        # Determine confidence
         if score >= 0.75:
             confidence = "high"
         elif score >= 0.45:
@@ -155,14 +117,8 @@ class MatchExplainer:
         else:
             confidence = "low"
 
-        # Generate summary
         summary = self._build_summary(
-            score,
-            top_factors,
-            strengths,
-            gaps,
-            candidate_name,
-            opportunity_title,
+            score, top_factors, strengths, gaps, candidate_name, opportunity_title
         )
 
         return MatchExplanation(
@@ -182,8 +138,6 @@ class MatchExplainer:
         candidate_name: str | None,
         opportunity_title: str | None,
     ) -> str:
-        """Build the one-line summary sentence."""
-        # Score quality descriptor
         if score >= 0.85:
             quality = "excellent"
         elif score >= 0.65:
@@ -195,18 +149,12 @@ class MatchExplainer:
         else:
             quality = "limited"
 
-        # Top factor description
-        top_factors[0]["label"] if top_factors else "overall profile"
-
         subject = candidate_name or "The candidate"
         target = opportunity_title or "this opportunity"
-
         parts = [f"{subject} has a {quality} match ({score:.0%}) with {target}"]
-
         if top_factors:
             top_factor_str = ", ".join(f["label"].lower() for f in top_factors[:3])
             parts.append(f", driven primarily by {top_factor_str}")
-
         parts.append(".")
         return "".join(parts)
 
@@ -216,7 +164,6 @@ class MatchExplainer:
         scores: list[float],
         breakdowns: list[dict[str, Any]] | None = None,
     ) -> list[MatchExplanation]:
-        """Generate explanations for a batch of matches."""
         explanations = []
         for i, (fv, score) in enumerate(zip(features_list, scores, strict=False)):
             breakdown = breakdowns[i] if breakdowns else None
@@ -230,39 +177,125 @@ class MatchExplainer:
         opportunity_title: str,
         organisation: str,
     ) -> str:
-        """
-        Generate a plain-text email body for notifying a candidate
-        about their match.
-        """
         lines = [
             f"Dear {candidate_name},",
             "",
             f"We're pleased to inform you that your profile has been matched "
             f"with an internship opportunity: {opportunity_title} at {organisation}.",
             "",
-            f"Match Score: {explanation.confidence.title()} ({explanation.summary.split('(')[1].split(')')[0] if '(' in explanation.summary else ''})",
-            "",
         ]
-
         if explanation.strengths:
             lines.append("Why you're a great fit:")
             for s in explanation.strengths:
                 lines.append(f"  ✓ {s}")
             lines.append("")
-
         if explanation.gaps:
             lines.append("Things to keep in mind:")
             for g in explanation.gaps:
                 lines.append(f"  • {g}")
             lines.append("")
-
-        lines.extend(
-            [
-                "Please log in to your dashboard to review the full details and accept or decline this offer.",
-                "",
-                "Best regards,",
-                "PM Internship Scheme Team",
-            ]
-        )
-
+        lines.extend([
+            "Please log in to your dashboard to review the full details.",
+            "",
+            "Best regards,",
+            "PM Internship Scheme Team",
+        ])
         return "\n".join(lines)
+
+
+# ─── Module-level API (required by tests) ────────────────────────────────────
+
+@dataclass
+class ScoreBreakdownItem:
+    component_name: str
+    raw_value: float
+    percentage: float
+    weight: float = 1.0
+
+
+@dataclass
+class MatchExplanationV2:
+    candidate_id: str
+    opportunity_id: str
+    final_score: float
+    score_breakdown: list[ScoreBreakdownItem]
+    strengths: list[str]
+    gaps: list[str]
+    candidate_facing: str
+    admin_facing: str
+    shap_top_features: list[dict[str, Any]] | None = None
+
+
+def explain_match(
+    candidate: dict[str, Any],
+    opportunity: dict[str, Any],
+    scores: dict[str, float],
+    shap_values: dict[str, float] | None = None,
+) -> MatchExplanationV2:
+    """Generate structured explanation for a candidate-opportunity match."""
+    n = len(scores)
+    total_weight = sum(scores.values()) if scores else 1.0
+    final_score = min(1.0, total_weight / n) if n > 0 else 0.0
+    items: list[ScoreBreakdownItem] = []
+    for name, val in scores.items():
+        pct = (val / total_weight * 100.0) if total_weight > 0 else 0.0
+        items.append(ScoreBreakdownItem(component_name=name, raw_value=val, percentage=round(pct, 2)))
+    strengths = [f"{k.replace('_', ' ').title()} ({v:.0%})" for k, v in scores.items() if v >= 0.70]
+    gaps = [f"{k.replace('_', ' ').title()} ({v:.0%})" for k, v in scores.items() if v <= 0.30]
+    cid = str(candidate.get("candidate_id", ""))
+    oid = str(opportunity.get("opportunity_id", ""))
+    cname = str(candidate.get("name", "Candidate"))
+    title = str(opportunity.get("title", "this opportunity"))
+    org = str(opportunity.get("organization", "the organisation"))
+    quality = "excellent" if final_score >= 0.85 else "strong" if final_score >= 0.65 else "good"
+    cand_text = (
+        f"Dear {cname},\n\nYou have a {quality} match ({final_score:.0%}) for {title} at {org}.\n\n"
+        "Your profile was evaluated across multiple dimensions:\n"
+        + "\n".join(f"  {k.replace('_',' ').title()}: {v:.0%}" for k, v in scores.items())
+        + "\n\nWe encourage you to review the opportunity details on your dashboard."
+    )
+    admin_text = (
+        f"Admin Explanation – Candidate {cid} ({cname})\nOrganisation: {org}\nFinal Score: {final_score:.4f}\n\n"
+        "Score Breakdown:\n"
+        + "\n".join(f"  {k}: {v:.4f}" for k, v in scores.items())
+    )
+    shap_top: list[dict[str, Any]] | None = None
+    if shap_values is not None:
+        shap_top = [
+            {"feature": k, "shap_value": round(v, 4)}
+            for k, v in sorted(shap_values.items(), key=lambda x: abs(x[1]), reverse=True)
+        ]
+    return MatchExplanationV2(
+        candidate_id=cid,
+        opportunity_id=oid,
+        final_score=round(final_score, 4),
+        score_breakdown=items,
+        strengths=strengths,
+        gaps=gaps,
+        candidate_facing=cand_text,
+        admin_facing=admin_text,
+        shap_top_features=shap_top,
+    )
+
+
+def candidate_facing_explanation(explanation: MatchExplanationV2) -> str:
+    """Return candidate-facing text from a MatchExplanationV2."""
+    return explanation.candidate_facing
+
+
+def admin_facing_explanation(explanation: MatchExplanationV2) -> str:
+    """Return admin-facing text from a MatchExplanationV2."""
+    return explanation.admin_facing
+
+
+def score_breakdown(explanation: MatchExplanationV2) -> list[dict[str, Any]]:
+    """Convert breakdown items to list of dicts."""
+    return [
+        {
+            "component_name": i.component_name,
+            "raw_value": i.raw_value,
+            "percentage": i.percentage,
+            "weight": i.weight,
+        }
+        for i in explanation.score_breakdown
+    ]

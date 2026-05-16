@@ -83,29 +83,16 @@ class RankingEvaluator:
         relevance_dicts: list[dict[str, float]],
         k_values: list[int] | None = None,
     ) -> EvaluationResult:
-        """
-        Evaluate ranking quality across multiple queries.
-
-        Args:
-            ranked_lists: Per-query ranked results. Each is a list of
-                (candidate_id, score) sorted by score descending.
-            relevance_dicts: Per-query relevance labels. Each maps
-                candidate_id to relevance (0=irrelevant, higher=more relevant).
-            k_values: K values for @K metrics. Uses defaults if None.
-
-        Returns:
-            EvaluationResult with all metrics.
-        """
         if len(ranked_lists) != len(relevance_dicts):
             raise ValueError("ranked_lists and relevance_dicts must have the same length")
 
         ks = k_values or self._k_values
         n_queries = len(ranked_lists)
 
-        ndcg_sums = {k: 0.0 for k in ks}
-        precision_sums = {k: 0.0 for k in ks}
-        recall_sums = {k: 0.0 for k in ks}
-        hit_sums = {k: 0.0 for k in ks}
+        ndcg_sums: dict[int, float] = {k: 0.0 for k in ks}
+        precision_sums: dict[int, float] = {k: 0.0 for k in ks}
+        recall_sums: dict[int, float] = {k: 0.0 for k in ks}
+        hit_sums: dict[int, float] = {k: 0.0 for k in ks}
         ap_sum = 0.0
         rr_sum = 0.0
         total_relevant = 0
@@ -114,25 +101,20 @@ class RankingEvaluator:
             ids = [item[0] for item in ranked]
             rels = np.array([relevance.get(cid, 0) for cid in ids])
 
-            # NDCG@K
             for k in ks:
                 ndcg_sums[k] += self._ndcg_at_k(rels, k)
 
-            # MAP
             ap_sum += self._average_precision(rels)
-
-            # MRR
             rr_sum += self._reciprocal_rank(rels)
 
-            # Precision, Recall, Hit Rate @K
             num_relevant = sum(1 for v in relevance.values() if v > 0)
             total_relevant += num_relevant
 
             for k in ks:
                 top_k_rels = rels[:k]
-                precision_sums[k] += np.sum(top_k_rels > 0) / k
+                precision_sums[k] += float(np.sum(top_k_rels > 0)) / k
                 if num_relevant > 0:
-                    recall_sums[k] += np.sum(top_k_rels > 0) / num_relevant
+                    recall_sums[k] += float(np.sum(top_k_rels > 0)) / num_relevant
                 hit_sums[k] += 1.0 if np.any(top_k_rels > 0) else 0.0
 
         result = EvaluationResult(
@@ -152,89 +134,51 @@ class RankingEvaluator:
     def evaluate_binary(
         self,
         ranked_lists: list[list[str]],
-        relevant_sets: list[set],
+        relevant_sets: list[set[str]],
         k_values: list[int] | None = None,
     ) -> EvaluationResult:
-        """
-        Simplified evaluation with binary relevance (relevant/not).
-
-        Args:
-            ranked_lists: Per-query ranked candidate IDs.
-            relevant_sets: Per-query set of relevant candidate IDs.
-
-        Returns:
-            EvaluationResult.
-        """
         relevance_dicts = [
             {cid: (1.0 if cid in rel_set else 0.0) for cid in ranked}
             for ranked, rel_set in zip(ranked_lists, relevant_sets, strict=False)
         ]
         ranked_with_scores = [
-            [(cid, float(len(ranked) - i)) for i, cid in enumerate(ranked)] for ranked in ranked_lists
+            [(cid, float(len(ranked) - i)) for i, cid in enumerate(ranked)]
+            for ranked in ranked_lists
         ]
         return self.evaluate(ranked_with_scores, relevance_dicts, k_values)
 
     @staticmethod
     def _dcg_at_k(relevances: np.ndarray, k: int) -> float:
-        """
-        Compute Discounted Cumulative Gain at K.
-
-        DCG@K = Σ (2^rel_i - 1) / log2(i + 2) for i in [0, K)
-        """
         k = min(k, len(relevances))
         if k == 0:
             return 0.0
-
         positions = np.arange(1, k + 1)
         discounts = 1.0 / np.log2(positions + 1)
         gains = 2 ** relevances[:k] - 1
-
         return float(np.sum(gains * discounts))
 
     def _ndcg_at_k(self, relevances: np.ndarray, k: int) -> float:
-        """
-        Compute Normalised DCG at K.
-
-        NDCG@K = DCG@K / IDCG@K
-        """
         dcg = self._dcg_at_k(relevances, k)
-
-        # Ideal ranking: sort by relevance descending
         ideal = np.sort(relevances)[::-1]
         idcg = self._dcg_at_k(ideal, k)
-
         if idcg == 0:
             return 0.0
-
         return dcg / idcg
 
     @staticmethod
     def _average_precision(relevances: np.ndarray) -> float:
-        """
-        Compute Average Precision for a single query.
-
-        AP = (1/R) × Σ P(k) × rel(k)
-        where R = total relevant, P(k) = precision at rank k.
-        """
         num_relevant = np.sum(relevances > 0)
         if num_relevant == 0:
             return 0.0
-
         precisions = []
         for k in range(len(relevances)):
             if relevances[k] > 0:
-                prec_at_k = np.sum(relevances[: k + 1] > 0) / (k + 1)
+                prec_at_k = float(np.sum(relevances[: k + 1] > 0)) / (k + 1)
                 precisions.append(prec_at_k)
-
         return float(np.sum(precisions) / num_relevant) if precisions else 0.0
 
     @staticmethod
     def _reciprocal_rank(relevances: np.ndarray) -> float:
-        """
-        Compute Reciprocal Rank.
-
-        RR = 1/rank of first relevant item.
-        """
         for i, rel in enumerate(relevances):
             if rel > 0:
                 return 1.0 / (i + 1)
@@ -246,30 +190,58 @@ class RankingEvaluator:
         all_relevance: list[list[dict[str, float]]],
         fold_names: list[str] | None = None,
     ) -> dict[str, EvaluationResult]:
-        """
-        Evaluate across multiple folds (e.g. time-based splits).
-
-        Args:
-            all_ranked: List of fold → query → ranked results.
-            all_relevance: List of fold → query → relevance labels.
-
-        Returns:
-            Dict mapping fold name to EvaluationResult.
-        """
         if fold_names is None:
             fold_names = [f"fold_{i}" for i in range(len(all_ranked))]
 
-        results = {}
+        results: dict[str, EvaluationResult] = {}
         for name, ranked, relevance in zip(fold_names, all_ranked, all_relevance, strict=False):
             results[name] = self.evaluate(ranked, relevance)
             logger.info("Fold %s: %s", name, results[name].summary())
 
-        # Compute overall stats
         all_ndcg10 = [r.ndcg_at_k.get(10, 0) for r in results.values()]
         logger.info(
             "Cross-validation NDCG@10: mean=%.4f, std=%.4f",
             np.mean(all_ndcg10),
             np.std(all_ndcg10),
         )
-
         return results
+
+
+# ─── Module-level convenience functions (required by tests) ──────────────────
+
+def ndcg_at_k(
+    y_true: np.ndarray,
+    y_score: np.ndarray,
+    k: int = 10,
+) -> float:
+    """NDCG@K for a single ranked list."""
+    if len(y_true) == 0:
+        return 0.0
+    order = np.argsort(y_score)[::-1]
+    relevances = np.array(y_true, dtype=float)[order]
+    evaluator = RankingEvaluator()
+    return evaluator._ndcg_at_k(relevances, k)
+
+
+def mean_average_precision(
+    y_true: np.ndarray,
+    y_score: np.ndarray,
+) -> float:
+    """Mean Average Precision for a single query."""
+    if len(y_true) == 0:
+        return 0.0
+    order = np.argsort(y_score)[::-1]
+    relevances = np.array(y_true, dtype=float)[order]
+    return RankingEvaluator._average_precision(relevances)
+
+
+def mean_reciprocal_rank(
+    y_true: np.ndarray,
+    y_score: np.ndarray,
+) -> float:
+    """Mean Reciprocal Rank for a single query."""
+    if len(y_true) == 0:
+        return 0.0
+    order = np.argsort(y_score)[::-1]
+    relevances = np.array(y_true, dtype=float)[order]
+    return RankingEvaluator._reciprocal_rank(relevances)

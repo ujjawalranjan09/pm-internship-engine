@@ -1,358 +1,155 @@
 """
-Policy Engine – Configurable Fairness Policies
-================================================
+Fairness Policy Engine – Score Adjustment for Equity
+======================================================
 
-Applies configurable fairness policies to the allocation process.
-Policies are defined as rules with conditions and actions, allowing
-administrators to tune fairness behaviour without code changes.
+Applies configurable fairness policies to raw match scores to promote
+equitable outcomes for under-represented groups:
 
-Policy types:
-    - Category boost: increase scores for under-represented groups
-    - Minimum quota: guarantee minimum representation
-    - Geographic diversity: bonus for under-represented districts
-    - Gender parity: target-based gender balancing
-    - Quality floor: reject matches below minimum score
+    - Category-based uplift (SC/ST/OBC)
+    - Rural preference factor
+    - Female candidate uplift
+    - Repeat participation penalty
+    - District-level representation targets
+
+Policies are configurable via PolicyConfig and applied as additive
+adjustments bounded by max_total_adjustment.
 """
 
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable
 from dataclasses import dataclass, field
-from enum import StrEnum
-from typing import Any
+from typing import Any, Callable
+
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
 
-class PolicyType(StrEnum):
-    """Types of fairness policies."""
-
-    CATEGORY_BOOST = "category_boost"
-    MIN_QUOTA = "min_quota"
-    GEO_DIVERSITY = "geo_diversity"
-    GENDER_PARITY = "gender_parity"
-    QUALITY_FLOOR = "quality_floor"
-    RURAL_BOOST = "rural_boost"
-    CUSTOM = "custom"
-
-
-class PolicyAction(StrEnum):
-    """What a policy does when triggered."""
-
-    BOOST_SCORE = "boost_score"
-    REDUCE_SCORE = "reduce_score"
-    GUARANTEE_SLOT = "guarantee_slot"
-    REJECT = "reject"
-    LOG = "log"
-
-
 @dataclass
-class PolicyRule:
-    """A single fairness policy rule."""
-
-    name: str
-    policy_type: PolicyType
-    action: PolicyAction
-    enabled: bool = True
-    priority: int = 0  # Higher = applied first
-
-    # Conditions
-    target_groups: list[str] = field(default_factory=list)
-    min_group_size: int = 0  # Minimum candidates in group to activate
-
-    # Parameters
-    boost_amount: float = 0.0
-    quota_fraction: float = 0.0
-    threshold: float = 0.0
-
-    # Custom function (for PolicyType.CUSTOM)
-    custom_fn: Callable | None = field(default=None, repr=False)
-
-    def matches(self, candidate_metadata: dict[str, Any]) -> bool:
-        """Check if this policy applies to a candidate."""
-        if not self.enabled:
-            return False
-
-        if not self.target_groups:
-            return True
-
-        candidate_group = (candidate_metadata.get("social_category", "general")).lower()
-
-        return candidate_group in [g.lower() for g in self.target_groups]
+class PolicyConfig:
+    """Configuration for fairness policy adjustments."""
+    district_target_fraction: float = 0.1
+    category_balance_factor: float = 0.03
+    rural_preference_factor: float = 0.04
+    female_target_fraction: float = 0.33
+    max_total_adjustment: float = 0.15
+    repeat_penalty_per_alloc: float = 0.05
+    enable_district_uplift: bool = True
+    enable_category_balancing: bool = True
+    enable_rural_preference: bool = True
+    enable_female_uplift: bool = True
+    enable_repeat_penalty: bool = True
 
 
-@dataclass
-class PolicyApplication:
-    """Result of applying a policy to a single candidate."""
+def load_policy(config_dict: dict[str, Any]) -> PolicyConfig:
+    """Create PolicyConfig from a dict, ignoring unknown keys."""
+    import dataclasses as _dc_mod
+    valid = {f.name for f in _dc_mod.fields(PolicyConfig)}
+    filtered = {k: v for k, v in config_dict.items() if k in valid}
+    return PolicyConfig(**filtered)
 
-    policy_name: str
-    action: PolicyAction
-    adjustment: float = 0.0
-    reason: str = ""
+
+def apply_policy(
+    scores: np.ndarray,
+    candidates: Any,
+    config: PolicyConfig | None = None,
+) -> np.ndarray:
+    """Apply fairness policy adjustments to a scores array."""
+    cfg = config or PolicyConfig()
+    n = len(scores)
+    adjusted = scores.copy().astype(float)
+
+    def _col(name: str, default: Any) -> list[Any]:
+        if hasattr(candidates, "columns") and name in candidates.columns:
+            return list(candidates[name])
+        return [default] * n
+
+    categories = _col("category", "general")
+    is_rural = _col("is_rural", False)
+    genders = _col("gender", "unspecified")
+    prev_allocs = _col("previous_allocations", 0)
+
+    CATEGORY_BOOSTS: dict[str, float] = {
+        "sc": 0.08,
+        "scheduled caste": 0.08,
+        "st": 0.10,
+        "scheduled tribe": 0.10,
+        "obc": cfg.category_balance_factor,
+        "other backward class": cfg.category_balance_factor,
+    }
+
+    for i in range(n):
+        delta = 0.0
+        if cfg.enable_category_balancing:
+            delta += CATEGORY_BOOSTS.get(str(categories[i]).lower(), 0.0)
+        if cfg.enable_rural_preference and bool(is_rural[i]):
+            delta += cfg.rural_preference_factor
+        if cfg.enable_female_uplift and str(genders[i]).lower() in ("female", "f", "woman"):
+            delta += 0.03
+        if cfg.enable_repeat_penalty:
+            n_prev = int(prev_allocs[i]) if prev_allocs[i] else 0
+            delta -= n_prev * cfg.repeat_penalty_per_alloc
+        delta = max(-float(scores[i]), min(cfg.max_total_adjustment, delta))
+        adjusted[i] = max(0.0, scores[i] + delta)
+    return adjusted
 
 
 class PolicyEngine:
     """
-    Configurable fairness policy engine.
-
-    Manages a set of PolicyRules and applies them to candidate
-    scores during the matching pipeline.
+    Applies configured fairness policies to a batch of candidate scores.
 
     Usage:
-        engine = PolicyEngine()
-        engine.add_rule(PolicyRule(...))
-        adjusted_score = engine.apply(candidate_metadata, original_score)
+        engine = PolicyEngine(config)
+        adjusted_scores = engine.adjust(raw_scores, candidate_metadata)
     """
 
-    # Default policies for the PM Internship Scheme
-    DEFAULT_POLICIES = [
-        PolicyRule(
-            name="sc_category_boost",
-            policy_type=PolicyType.CATEGORY_BOOST,
-            action=PolicyAction.BOOST_SCORE,
-            target_groups=["sc", "scheduled caste"],
-            boost_amount=0.08,
-            priority=10,
-        ),
-        PolicyRule(
-            name="st_category_boost",
-            policy_type=PolicyType.CATEGORY_BOOST,
-            action=PolicyAction.BOOST_SCORE,
-            target_groups=["st", "scheduled tribe"],
-            boost_amount=0.10,
-            priority=10,
-        ),
-        PolicyRule(
-            name="obc_category_boost",
-            policy_type=PolicyType.CATEGORY_BOOST,
-            action=PolicyAction.BOOST_SCORE,
-            target_groups=["obc", "other backward class"],
-            boost_amount=0.05,
-            priority=10,
-        ),
-        PolicyRule(
-            name="rural_boost",
-            policy_type=PolicyType.RURAL_BOOST,
-            action=PolicyAction.BOOST_SCORE,
-            boost_amount=0.06,
-            priority=8,
-        ),
-        PolicyRule(
-            name="gender_parity_boost",
-            policy_type=PolicyType.GENDER_PARITY,
-            action=PolicyAction.BOOST_SCORE,
-            target_groups=["female", "f", "woman"],
-            boost_amount=0.03,
-            priority=5,
-        ),
-        PolicyRule(
-            name="quality_floor",
-            policy_type=PolicyType.QUALITY_FLOOR,
-            action=PolicyAction.REJECT,
-            threshold=0.15,
-            priority=100,
-        ),
-    ]
+    def __init__(self, config: PolicyConfig | None = None) -> None:
+        self.config = config or PolicyConfig()
 
-    def __init__(
+    def adjust(
         self,
-        rules: list[PolicyRule] | None = None,
-        use_defaults: bool = True,
-        max_total_boost: float = 0.25,
-    ) -> None:
-        """
-        Initialise the policy engine.
+        scores: np.ndarray,
+        candidate_metadata: list[dict[str, Any]],
+    ) -> np.ndarray:
+        """Apply all enabled policy rules and return adjusted scores."""
+        import pandas as pd
+        df = pd.DataFrame(candidate_metadata) if candidate_metadata else pd.DataFrame()
+        return apply_policy(scores, df, self.config)
 
-        Args:
-            rules: Custom policy rules.
-            use_defaults: Whether to include default PM Internship policies.
-            max_total_boost: Maximum cumulative boost that can be applied.
-        """
-        self._rules: list[PolicyRule] = []
-        self._max_total_boost = max_total_boost
-
-        if use_defaults:
-            self._rules.extend(self.DEFAULT_POLICIES)
-
-        if rules:
-            self._rules.extend(rules)
-
-        # Sort by priority descending (highest priority first)
-        self._rules.sort(key=lambda r: -r.priority)
-
-        logger.info("PolicyEngine initialized with %d rules", len(self._rules))
-
-    def add_rule(self, rule: PolicyRule) -> None:
-        """Add a policy rule."""
-        self._rules.append(rule)
-        self._rules.sort(key=lambda r: -r.priority)
-        logger.info("Added policy rule: %s", rule.name)
-
-    def remove_rule(self, name: str) -> bool:
-        """Remove a policy rule by name."""
-        before = len(self._rules)
-        self._rules = [r for r in self._rules if r.name != name]
-        removed = len(self._rules) < before
-        if removed:
-            logger.info("Removed policy rule: %s", name)
-        return removed
-
-    def get_rules(self) -> list[PolicyRule]:
-        """Return all active rules."""
-        return [r for r in self._rules if r.enabled]
-
-    def apply(
+    def explain_adjustments(
         self,
-        candidate_metadata: dict[str, Any],
-        original_score: float,
-        context: dict[str, Any] | None = None,
-    ) -> tuple[float, list[PolicyApplication]]:
-        """
-        Apply all matching policies to a candidate's score.
-
-        Args:
-            candidate_metadata: Dict with social_category, is_rural, gender, etc.
-            original_score: The pre-fairness match score.
-            context: Additional context (group counts, opportunity info, etc.).
-
-        Returns:
-            Tuple of (adjusted_score, list_of_applications).
-        """
-        ctx = context or {}
-        applications: list[PolicyApplication] = []
-        total_boost = 0.0
-        rejected = False
-
-        for rule in self._rules:
-            if not rule.enabled:
-                continue
-
-            if not rule.matches(candidate_metadata):
-                continue
-
-            # Check minimum group size
-            if rule.min_group_size > 0:
-                group_count = ctx.get("group_counts", {}).get(
-                    candidate_metadata.get("social_category", "general").lower(), 0
-                )
-                if group_count < rule.min_group_size:
-                    continue
-
-            if rule.action == PolicyAction.REJECT:
-                if original_score < rule.threshold:
-                    rejected = True
-                    applications.append(
-                        PolicyApplication(
-                            policy_name=rule.name,
-                            action=rule.action,
-                            reason=f"Score {original_score:.3f} below threshold {rule.threshold:.3f}",
-                        )
-                    )
-                    break
-
-            elif rule.action == PolicyAction.BOOST_SCORE:
-                if total_boost + rule.boost_amount <= self._max_total_boost:
-                    total_boost += rule.boost_amount
-                    applications.append(
-                        PolicyApplication(
-                            policy_name=rule.name,
-                            action=rule.action,
-                            adjustment=rule.boost_amount,
-                            reason=f"{rule.policy_type.value} boost for {rule.target_groups or 'all'}",
-                        )
-                    )
-
-            elif rule.action == PolicyAction.REDUCE_SCORE:
-                reduction = min(rule.boost_amount, original_score + total_boost - 0.01)
-                if reduction > 0:
-                    total_boost -= reduction
-                    applications.append(
-                        PolicyApplication(
-                            policy_name=rule.name,
-                            action=rule.action,
-                            adjustment=-reduction,
-                            reason=f"{rule.policy_type.value} reduction",
-                        )
-                    )
-
-            elif rule.action == PolicyAction.GUARANTEE_SLOT:
-                applications.append(
-                    PolicyApplication(
-                        policy_name=rule.name,
-                        action=rule.action,
-                        reason=f"Quota: {rule.quota_fraction:.1%} minimum",
-                    )
-                )
-
-            elif rule.custom_fn:
-                adjustment = rule.custom_fn(candidate_metadata, original_score, ctx)
-                if adjustment != 0:
-                    total_boost += adjustment
-                    applications.append(
-                        PolicyApplication(
-                            policy_name=rule.name,
-                            action=PolicyAction.BOOST_SCORE if adjustment > 0 else PolicyAction.REDUCE_SCORE,
-                            adjustment=adjustment,
-                            reason="Custom policy",
-                        )
-                    )
-
-        if rejected:
-            return 0.0, applications
-
-        adjusted = min(1.0, max(0.0, original_score + total_boost))
-        return adjusted, applications
-
-    def apply_batch(
-        self,
-        candidates: list[dict[str, Any]],
-        scores: list[float],
-        context: dict[str, Any] | None = None,
-    ) -> tuple[list[float], list[list[PolicyApplication]]]:
-        """Apply policies to a batch of candidates."""
-        adjusted_scores = []
-        all_applications = []
-
-        for cand, score in zip(candidates, scores, strict=False):
-            adjusted, apps = self.apply(cand, score, context)
-            adjusted_scores.append(adjusted)
-            all_applications.append(apps)
-
-        return adjusted_scores, all_applications
-
-    def evaluate_policies(
-        self,
-        candidates: list[dict[str, Any]],
-        allocations: list[dict[str, Any]],
-    ) -> dict[str, Any]:
-        """
-        Evaluate the impact of current policies on allocations.
-
-        Returns a summary of how many candidates were affected
-        by each policy and the total score adjustment.
-        """
-        policy_impact: dict[str, dict[str, Any]] = {}
-
-        for rule in self._rules:
-            if not rule.enabled:
-                continue
-
-            affected = 0
-            total_adjustment = 0.0
-
-            for cand, alloc in zip(candidates, allocations, strict=False):
-                if not alloc.get("is_allocated", False):
-                    continue
-                if rule.matches(cand):
-                    affected += 1
-                    total_adjustment += rule.boost_amount
-
-            policy_impact[rule.name] = {
-                "type": rule.policy_type.value,
-                "affected_count": affected,
-                "total_adjustment": round(total_adjustment, 4),
-                "average_adjustment": round(total_adjustment / affected if affected > 0 else 0.0, 4),
-            }
-
-        return policy_impact
+        scores: np.ndarray,
+        adjusted_scores: np.ndarray,
+        candidate_metadata: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        """Return per-candidate adjustment explanations."""
+        results: list[dict[str, Any]] = []
+        for i, meta in enumerate(candidate_metadata):
+            if i >= len(scores):
+                break
+            delta = float(adjusted_scores[i]) - float(scores[i])
+            reasons: list[str] = []
+            cat = str(meta.get("category", "")).lower()
+            if cat in ("sc", "scheduled caste"):
+                reasons.append("SC category uplift")
+            elif cat in ("st", "scheduled tribe"):
+                reasons.append("ST category uplift")
+            elif cat in ("obc", "other backward class"):
+                reasons.append("OBC category balancing")
+            if meta.get("is_rural"):
+                reasons.append("Rural preference")
+            gender = str(meta.get("gender", "")).lower()
+            if gender in ("female", "f", "woman"):
+                reasons.append("Female uplift")
+            prev = int(meta.get("previous_allocations", 0))
+            if prev > 0:
+                reasons.append(f"Repeat participation penalty (-{prev} alloc)")
+            results.append({
+                "candidate_id": meta.get("candidate_id", i),
+                "original_score": round(float(scores[i]), 4),
+                "adjusted_score": round(float(adjusted_scores[i]), 4),
+                "delta": round(delta, 4),
+                "reasons": reasons,
+            })
+        return results
