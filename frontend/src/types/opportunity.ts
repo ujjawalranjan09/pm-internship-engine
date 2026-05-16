@@ -14,7 +14,7 @@ export interface Opportunity {
   filledSlots: number;
   requiredSkills: string[];
   eligibilityCriteria: {
-    minEducation: string;
+    minEducation?: string;
     minPercentage?: number;
     allowedCategories?: string[];
     maxAge?: number;
@@ -52,19 +52,21 @@ export interface CreateOpportunityRequest {
   sector: string;
   location: string;
   state: string;
-  district: string;
-  stipend: number;
+  district?: string;
+  workMode?: string;
+  stipend?: number;
   duration: number;
+  durationMonths?: number;
   capacity: number;
   requiredSkills: string[];
-  eligibilityCriteria: {
-    minEducation: string;
+  eligibilityCriteria?: {
+    minEducation?: string;
     minPercentage?: number;
     allowedCategories?: string[];
     maxAge?: number;
   };
-  startDate: string;
-  endDate: string;
+  startDate?: string;
+  endDate?: string;
 }
 
 export interface OpportunityFilter {

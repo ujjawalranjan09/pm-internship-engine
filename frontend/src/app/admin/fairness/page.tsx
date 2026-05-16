@@ -7,9 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import { SkeletonCard } from "@/components/shared/skeleton";
 import { PageHeader } from "@/components/shared/page-header";
 import { Progress } from "@/components/ui/progress";
-import { formatNumber, cn } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import {
-  BarChart3,
   Users,
   MapPin,
   Scale,
@@ -42,7 +41,6 @@ export default function FairnessPage() {
   if (!metrics) return null;
 
   const stateEntries = Object.entries(metrics.stateDistribution).sort(([, a], [, b]) => b - a);
-  const districtEntries = Object.entries(metrics.districtDistribution).sort(([, a], [, b]) => b - a);
 
   return (
     <div className="space-y-6">

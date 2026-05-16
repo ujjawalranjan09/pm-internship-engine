@@ -193,6 +193,8 @@ export default function NewInternshipPage() {
               />
               <Select
                 label="Work Mode"
+                {...register("workMode")}
+                error={errors.workMode?.message}
                 options={[
                   { label: "On-site", value: "onsite" },
                   { label: "Remote", value: "remote" },

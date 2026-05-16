@@ -29,6 +29,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class PolicyConfig:
     """Configuration for fairness policy adjustments."""
+
     district_target_fraction: float = 0.1
     category_balance_factor: float = 0.03
     rural_preference_factor: float = 0.04
@@ -45,6 +46,7 @@ class PolicyConfig:
 def load_policy(config_dict: dict[str, Any]) -> PolicyConfig:
     """Create PolicyConfig from a dict, ignoring unknown keys."""
     import dataclasses as _dc_mod
+
     valid = {f.name for f in _dc_mod.fields(PolicyConfig)}
     filtered = {k: v for k, v in config_dict.items() if k in valid}
     return PolicyConfig(**filtered)
@@ -114,6 +116,7 @@ class PolicyEngine:
     ) -> np.ndarray:
         """Apply all enabled policy rules and return adjusted scores."""
         import pandas as pd
+
         df = pd.DataFrame(candidate_metadata) if candidate_metadata else pd.DataFrame()
         return apply_policy(scores, df, self.config)
 
@@ -145,11 +148,13 @@ class PolicyEngine:
             prev = int(meta.get("previous_allocations", 0))
             if prev > 0:
                 reasons.append(f"Repeat participation penalty (-{prev} alloc)")
-            results.append({
-                "candidate_id": meta.get("candidate_id", i),
-                "original_score": round(float(scores[i]), 4),
-                "adjusted_score": round(float(adjusted_scores[i]), 4),
-                "delta": round(delta, 4),
-                "reasons": reasons,
-            })
+            results.append(
+                {
+                    "candidate_id": meta.get("candidate_id", i),
+                    "original_score": round(float(scores[i]), 4),
+                    "adjusted_score": round(float(adjusted_scores[i]), 4),
+                    "delta": round(delta, 4),
+                    "reasons": reasons,
+                }
+            )
         return results

@@ -31,6 +31,7 @@ export interface AllocationCycle {
   createdAt: string;
   startedAt?: string;
   completedAt?: string;
+  createdBy?: string;
 }
 
 export interface AllocationResult {
@@ -41,10 +42,10 @@ export interface AllocationResult {
   opportunityId: string;
   opportunityTitle: string;
   employerName: string;
-  location: string;
-  sector: string;
-  stipend: number;
-  allocationScore: number;
+  location?: string;
+  sector?: string;
+  stipend?: number;
+  allocationScore?: number;
   matchScore: number;
   status: AllocationStatus;
   allocatedAt: string;
@@ -62,6 +63,7 @@ export interface FairnessReport {
 }
 
 export interface PolicyConfig {
+  id?: string;
   name: string;
   description?: string;
   maxAllocationPerCandidate?: number;
@@ -78,7 +80,8 @@ export interface PolicyConfig {
     category?: Record<string, number>;
     ruralUrban?: { rural: number; urban: number };
   };
-  createdAt: string;
+  isActive?: boolean;
+  createdAt?: string;
   updatedAt: string;
 }
 
@@ -87,6 +90,7 @@ export interface AuditEntry {
   action: string;
   userId: string;
   userName: string;
+  performedBy?: string;
   performedByName: string;
   entityType: string;
   entityId: string;
@@ -97,10 +101,11 @@ export interface AuditEntry {
 
 export interface OverrideRequest {
   id: string;
-  cycleId: string;
+  cycleId?: string;
   candidateId: string;
   candidateName: string;
-  opportunityId: string;
+  opportunityId?: string;
+  originalOpportunityId?: string;
   originalOpportunityTitle?: string;
   targetOpportunityId?: string;
   targetOpportunityTitle?: string;

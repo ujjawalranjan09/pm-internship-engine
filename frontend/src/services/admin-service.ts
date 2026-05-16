@@ -28,13 +28,13 @@ const MOCK_POLICY: PolicyConfig = {
 };
 
 const MOCK_AUDIT: AuditEntry[] = [
-  { id: "a1", action: "allocation.triggered", entityType: "allocation_cycle", entityId: "cycle_002", performedBy: "admin_001", performedByName: "System Admin", details: { cycleName: "February 2025 Allocation" }, timestamp: "2025-02-10T06:00:00Z" },
-  { id: "a2", action: "policy.updated", entityType: "policy", entityId: "policy_001", performedBy: "admin_001", performedByName: "System Admin", details: { field: "weights.skillMatch", oldValue: 0.3, newValue: 0.35 }, timestamp: "2025-02-09T15:30:00Z" },
-  { id: "a3", action: "override.approved", entityType: "override", entityId: "ov_001", performedBy: "admin_002", performedByName: "Regional Admin", details: { candidateName: "Vikram Singh", reason: "Medical grounds" }, timestamp: "2025-02-08T11:20:00Z" },
-  { id: "a4", action: "candidate.verified", entityType: "candidate", entityId: "c5", performedBy: "admin_001", performedByName: "System Admin", details: { verificationType: "document" }, timestamp: "2025-02-07T09:45:00Z" },
-  { id: "a5", action: "opportunity.approved", entityType: "opportunity", entityId: "o6", performedBy: "admin_001", performedByName: "System Admin", details: { employerName: "CloudFirst", title: "Cloud Infrastructure Intern" }, timestamp: "2025-02-06T14:10:00Z" },
-  { id: "a6", action: "notification.sent", entityType: "notification", entityId: "n_003", performedBy: "system", performedByName: "System", details: { type: "allocation_result", recipientCount: 7200 }, timestamp: "2025-01-10T08:35:00Z" },
-  { id: "a7", action: "allocation.completed", entityType: "allocation_cycle", entityId: "cycle_001", performedBy: "system", performedByName: "System", details: { totalAllocations: 7200, duration: "2h 30m" }, timestamp: "2025-01-10T08:30:00Z" },
+  { id: "a1", action: "allocation.triggered", entityType: "allocation_cycle", entityId: "cycle_002", userId: "admin_001", userName: "System Admin", performedBy: "admin_001", performedByName: "System Admin", details: { cycleName: "February 2025 Allocation" }, timestamp: "2025-02-10T06:00:00Z" },
+  { id: "a2", action: "policy.updated", entityType: "policy", entityId: "policy_001", userId: "admin_001", userName: "System Admin", performedBy: "admin_001", performedByName: "System Admin", details: { field: "weights.skillMatch", oldValue: 0.3, newValue: 0.35 }, timestamp: "2025-02-09T15:30:00Z" },
+  { id: "a3", action: "override.approved", entityType: "override", entityId: "ov_001", userId: "admin_002", userName: "Regional Admin", performedBy: "admin_002", performedByName: "Regional Admin", details: { candidateName: "Vikram Singh", reason: "Medical grounds" }, timestamp: "2025-02-08T11:20:00Z" },
+  { id: "a4", action: "candidate.verified", entityType: "candidate", entityId: "c5", userId: "admin_001", userName: "System Admin", performedBy: "admin_001", performedByName: "System Admin", details: { verificationType: "document" }, timestamp: "2025-02-07T09:45:00Z" },
+  { id: "a5", action: "opportunity.approved", entityType: "opportunity", entityId: "o6", userId: "admin_001", userName: "System Admin", performedBy: "admin_001", performedByName: "System Admin", details: { employerName: "CloudFirst", title: "Cloud Infrastructure Intern" }, timestamp: "2025-02-06T14:10:00Z" },
+  { id: "a6", action: "notification.sent", entityType: "notification", entityId: "n_003", userId: "system", userName: "System", performedBy: "system", performedByName: "System", details: { type: "allocation_result", recipientCount: 7200 }, timestamp: "2025-01-10T08:35:00Z" },
+  { id: "a7", action: "allocation.completed", entityType: "allocation_cycle", entityId: "cycle_001", userId: "system", userName: "System", performedBy: "system", performedByName: "System", details: { totalAllocations: 7200, duration: "2h 30m" }, timestamp: "2025-01-10T08:30:00Z" },
 ];
 
 const MOCK_OVERRIDES: OverrideRequest[] = [

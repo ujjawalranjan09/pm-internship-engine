@@ -11,6 +11,8 @@ const MOCK_CYCLES: AllocationCycle[] = [
     totalCandidates: 15420,
     totalOpportunities: 8500,
     totalAllocations: 7200,
+    allocatedCount: 7200,
+    unallocatedCount: 8220,
     fairnessMetrics: {
       genderDistribution: { Male: 52, Female: 46, Other: 2 },
       categoryDistribution: { General: 40, OBC: 27, SC: 16, ST: 10, EWS: 7 },
@@ -31,6 +33,8 @@ const MOCK_CYCLES: AllocationCycle[] = [
     totalCandidates: 18200,
     totalOpportunities: 9200,
     totalAllocations: 0,
+    allocatedCount: 0,
+    unallocatedCount: 18200,
     fairnessMetrics: {
       genderDistribution: {},
       categoryDistribution: {},
@@ -50,6 +54,8 @@ const MOCK_CYCLES: AllocationCycle[] = [
     totalCandidates: 0,
     totalOpportunities: 0,
     totalAllocations: 0,
+    allocatedCount: 0,
+    unallocatedCount: 0,
     fairnessMetrics: {
       genderDistribution: {},
       categoryDistribution: {},

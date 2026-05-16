@@ -27,7 +27,7 @@ export interface RegisterRequest {
   email: string;
   password: string;
   name: string;
-  role: "candidate" | "employer";
+  role: UserRole;
   phone?: string;
 }
 

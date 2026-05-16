@@ -26,6 +26,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class RankedCandidate:
     """A candidate with ranking metadata after reranking."""
+
     candidate_id: str
     original_score: float
     final_score: float
@@ -43,9 +44,8 @@ class FairnessReranker:
         reranker = FairnessReranker()
         ranked = reranker.rerank(candidates, scores)
     """
-    target_fractions: dict[str, float] = field(
-        default_factory=lambda: {"female": 0.33, "rural": 0.20}
-    )
+
+    target_fractions: dict[str, float] = field(default_factory=lambda: {"female": 0.33, "rural": 0.20})
     boost_strength: float = 0.10
     max_rank_change: int = 10
     min_quality_threshold: float = 0.50
@@ -111,8 +111,7 @@ def mmr_rerank(
         else:
             sel_arr = np.array(selected_indices)
             mmr_scores = [
-                lambda_param * scores_arr[idx]
-                - (1.0 - lambda_param) * float(np.max(sim[idx, sel_arr]))
+                lambda_param * scores_arr[idx] - (1.0 - lambda_param) * float(np.max(sim[idx, sel_arr]))
                 for idx in remaining
             ]
             best = remaining[int(np.argmax(mmr_scores))]

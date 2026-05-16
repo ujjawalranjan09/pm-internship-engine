@@ -142,8 +142,7 @@ class RankingEvaluator:
             for ranked, rel_set in zip(ranked_lists, relevant_sets, strict=False)
         ]
         ranked_with_scores = [
-            [(cid, float(len(ranked) - i)) for i, cid in enumerate(ranked)]
-            for ranked in ranked_lists
+            [(cid, float(len(ranked) - i)) for i, cid in enumerate(ranked)] for ranked in ranked_lists
         ]
         return self.evaluate(ranked_with_scores, relevance_dicts, k_values)
 
@@ -208,6 +207,7 @@ class RankingEvaluator:
 
 
 # ─── Module-level convenience functions (required by tests) ──────────────────
+
 
 def ndcg_at_k(
     y_true: np.ndarray,

@@ -178,12 +178,12 @@ export default function AdminAllocationsPage() {
                                 <div
                                   className={cn(
                                     "h-full rounded-full",
-                                    r.allocationScore >= 70 ? "bg-green-500" : r.allocationScore >= 50 ? "bg-amber-500" : "bg-gray-400"
+                                    (r.allocationScore ?? 0) >= 70 ? "bg-green-500" : (r.allocationScore ?? 0) >= 50 ? "bg-amber-500" : "bg-gray-400"
                                   )}
-                                  style={{ width: `${r.allocationScore}%` }}
+                                  style={{ width: `${r.allocationScore ?? 0}%` }}
                                 />
                               </div>
-                              <span className="text-xs font-medium">{r.allocationScore}%</span>
+                              <span className="text-xs font-medium">{r.allocationScore ?? 0}%</span>
                             </div>
                           </td>
                           <td className="px-3 py-2">

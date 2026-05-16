@@ -25,6 +25,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class CandidateProfile:
     """Lightweight candidate profile used by the optimizer."""
+
     candidate_id: str
     score: float
     features: dict[str, Any] = field(default_factory=dict)
@@ -36,6 +37,7 @@ class CandidateProfile:
 @dataclass
 class OptimizedAllocationResult:
     """Result from an optimize_allocation call."""
+
     allocated: list[CandidateProfile] = field(default_factory=list)
     unallocated: list[CandidateProfile] = field(default_factory=list)
     objective_value: float = 0.0
@@ -52,9 +54,7 @@ def optimize_allocation(
     eligible = [c for c in candidates if c.score >= min_score]
     eligible_sorted = sorted(eligible, key=lambda x: x.score, reverse=True)
     allocated = eligible_sorted[:n_slots]
-    unallocated = eligible_sorted[n_slots:] + [
-        c for c in candidates if c.score < min_score
-    ]
+    unallocated = eligible_sorted[n_slots:] + [c for c in candidates if c.score < min_score]
     return OptimizedAllocationResult(
         allocated=allocated,
         unallocated=unallocated,
@@ -89,9 +89,7 @@ class AllocationOptimizer:
         self.strategy = strategy
         self.weights = weights or {}
 
-    def run(
-        self, candidates: list[CandidateProfile]
-    ) -> OptimizedAllocationResult:
+    def run(self, candidates: list[CandidateProfile]) -> OptimizedAllocationResult:
         """Run the configured allocation strategy."""
         return optimize_allocation(
             candidates,

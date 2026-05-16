@@ -54,7 +54,7 @@ export default function AllocationPage() {
       });
     }, 800);
 
-    triggerAllocation.mutate();
+    triggerAllocation.mutate({ name: `Cycle ${new Date().toISOString().slice(0, 10)}` });
   };
 
   if (isLoading) {

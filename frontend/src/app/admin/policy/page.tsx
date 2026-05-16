@@ -64,11 +64,14 @@ export default function PolicyPage() {
 
   useEffect(() => {
     if (policy) {
-      setWeights(policy.weights);
-      setThresholds(policy.thresholds);
-      setGenderTargets(policy.representationTargets.gender);
-      setCategoryTargets(policy.representationTargets.category);
-      setRuralUrban(policy.representationTargets.ruralUrban);
+      if (policy.weights) setWeights(policy.weights as typeof DEFAULT_WEIGHTS);
+      if (policy.thresholds) setThresholds({
+        minimumMatchScore: policy.thresholds.minimumMatchScore ?? 40,
+        minimumProfileCompletion: policy.thresholds.minimumProfileCompletion ?? 60,
+      });
+      if (policy.representationTargets?.gender) setGenderTargets(policy.representationTargets.gender);
+      if (policy.representationTargets?.category) setCategoryTargets(policy.representationTargets.category);
+      if (policy.representationTargets?.ruralUrban) setRuralUrban(policy.representationTargets.ruralUrban);
     }
   }, [policy]);
 

@@ -1,26 +1,22 @@
 "use client";
 
 import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import * as matchingService from "@/services/matching-service";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { PageHeader } from "@/components/shared/page-header";
-import { SkeletonCard } from "@/components/shared/skeleton";
 import { StatsCard } from "@/components/shared/stats-card";
 import { formatDate, cn } from "@/lib/utils";
 import {
   Activity,
   Play,
   RefreshCw,
-  TrendingUp,
   Users,
   Briefcase,
-  Star,
   BarChart3,
-  Clock,
   CheckCircle,
 } from "lucide-react";
 

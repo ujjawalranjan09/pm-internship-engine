@@ -117,9 +117,7 @@ class MatchExplainer:
         else:
             confidence = "low"
 
-        summary = self._build_summary(
-            score, top_factors, strengths, gaps, candidate_name, opportunity_title
-        )
+        summary = self._build_summary(score, top_factors, strengths, gaps, candidate_name, opportunity_title)
 
         return MatchExplanation(
             summary=summary,
@@ -194,16 +192,19 @@ class MatchExplainer:
             for g in explanation.gaps:
                 lines.append(f"  • {g}")
             lines.append("")
-        lines.extend([
-            "Please log in to your dashboard to review the full details.",
-            "",
-            "Best regards,",
-            "PM Internship Scheme Team",
-        ])
+        lines.extend(
+            [
+                "Please log in to your dashboard to review the full details.",
+                "",
+                "Best regards,",
+                "PM Internship Scheme Team",
+            ]
+        )
         return "\n".join(lines)
 
 
 # ─── Module-level API (required by tests) ────────────────────────────────────
+
 
 @dataclass
 class ScoreBreakdownItem:
@@ -256,8 +257,7 @@ def explain_match(
     )
     admin_text = (
         f"Admin Explanation – Candidate {cid} ({cname})\nOrganisation: {org}\nFinal Score: {final_score:.4f}\n\n"
-        "Score Breakdown:\n"
-        + "\n".join(f"  {k}: {v:.4f}" for k, v in scores.items())
+        "Score Breakdown:\n" + "\n".join(f"  {k}: {v:.4f}" for k, v in scores.items())
     )
     shap_top: list[dict[str, Any]] | None = None
     if shap_values is not None:

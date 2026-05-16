@@ -48,15 +48,15 @@ export const STATES_AND_DISTRICTS: Record<string, string[]> = {
   "Kerala": ["Thiruvananthapuram", "Kochi", "Kozhikode", "Thrissur"],
 };
 
-export const SKILL_CATEGORIES: Record<string, string[]> = {
-  "Programming": ["Python", "JavaScript", "TypeScript", "Java", "C++", "Go", "Rust"],
-  "Web Development": ["React", "Next.js", "Vue.js", "Angular", "Node.js", "Django", "FastAPI"],
-  "Data & ML": ["Machine Learning", "Data Analysis", "SQL", "TensorFlow", "PyTorch", "Pandas"],
-  "Cloud & DevOps": ["AWS", "GCP", "Azure", "Docker", "Kubernetes", "CI/CD", "Terraform"],
-  "Design": ["Figma", "UI/UX Design", "Adobe XD", "Canva"],
-  "Business": ["Project Management", "Business Analysis", "Marketing", "Finance", "Excel"],
-  "Communication": ["Technical Writing", "Public Speaking", "Team Collaboration"],
-};
+export const SKILL_CATEGORIES = [
+  "Python", "JavaScript", "TypeScript", "Java", "C++", "Go", "Rust",
+  "React", "Next.js", "Vue.js", "Angular", "Node.js", "Django", "FastAPI",
+  "Machine Learning", "Data Analysis", "SQL", "TensorFlow", "PyTorch", "Pandas",
+  "AWS", "GCP", "Azure", "Docker", "Kubernetes", "CI/CD", "Terraform",
+  "Figma", "UI/UX Design", "Adobe XD", "Canva",
+  "Project Management", "Business Analysis", "Marketing", "Finance", "Excel",
+  "Technical Writing", "Public Speaking", "Team Collaboration",
+] as const;
 
 export const EDUCATION_LEVELS = [
   "High School",

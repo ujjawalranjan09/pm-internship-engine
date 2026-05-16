@@ -18,7 +18,7 @@ export interface PaginatedResponse<T> {
   totalPages: number;
 }
 
-export type UserRole = "applicant" | "employer" | "admin";
+export type UserRole = "candidate" | "employer" | "admin";
 
 export interface ActionConfig {
   label: string;

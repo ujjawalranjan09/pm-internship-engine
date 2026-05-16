@@ -53,6 +53,7 @@ class FairnessMetricsReport:
 
 # ─── Core metric functions ────────────────────────────────────────────────────
 
+
 def gini_coefficient(values: np.ndarray) -> float:
     """Compute Gini coefficient for an allocation distribution."""
     arr = np.clip(np.asarray(values, dtype=float), 0, None)
@@ -74,7 +75,7 @@ def concentration_index(opportunity_counts: dict[str, int]) -> float:
         return 0.0
     shares = [v / total for v in opportunity_counts.values()]
     n = len(shares)
-    raw_hhi = sum(s ** 2 for s in shares)
+    raw_hhi = sum(s**2 for s in shares)
     if n == 1:
         return 1.0
     normalised = (raw_hhi - 1.0 / n) / (1.0 - 1.0 / n)
@@ -173,9 +174,7 @@ def compute_all_fairness_metrics(
     if candidates is None or len(candidates) == 0:
         return report
     allocated_ids = set(allocations["candidate_id"].astype(str))
-    alloc_flags = np.array(
-        [1.0 if str(cid) in allocated_ids else 0.0 for cid in candidates["candidate_id"]]
-    )
+    alloc_flags = np.array([1.0 if str(cid) in allocated_ids else 0.0 for cid in candidates["candidate_id"]])
     report.gini_coefficient = gini_coefficient(alloc_flags)
     report.category_distribution = category_distribution(allocations, candidates)
     report.geographic_distribution = geographic_distribution(allocations, candidates)
@@ -183,9 +182,7 @@ def compute_all_fairness_metrics(
     if "is_rural" in allocations.columns:
         report.rural_urban_ratio_data = rural_urban_ratio(allocations)
     elif "is_rural" in candidates.columns:
-        merged = allocations.merge(
-            candidates[["candidate_id", "is_rural"]], on="candidate_id", how="left"
-        )
+        merged = allocations.merge(candidates[["candidate_id", "is_rural"]], on="candidate_id", how="left")
         report.rural_urban_ratio_data = rural_urban_ratio(merged)
     report.overall_fairness_score = round(1.0 - report.gini_coefficient, 4)
     if report.gini_coefficient > 0.5:
@@ -223,7 +220,4 @@ class FairnessMetricsCalculator:
     ) -> dict[str, Any]:
         if group_col not in df.columns or value_col not in df.columns:
             return {}
-        return {
-            str(k): agg_fn(g[value_col])
-            for k, g in df.groupby(group_col)
-        }
+        return {str(k): agg_fn(g[value_col]) for k, g in df.groupby(group_col)}
