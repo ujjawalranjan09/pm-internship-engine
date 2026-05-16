@@ -3,9 +3,8 @@
 import pytest
 
 from app.ml.ranking.optimizer import (
-    CandidateProfile,
-    OptimizedAllocationResult,
     AllocationOptimizer,
+    CandidateProfile,
     optimize_allocation,
 )
 
