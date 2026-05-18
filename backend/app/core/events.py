@@ -29,3 +29,15 @@ async def startup_handler() -> None:
 async def shutdown_handler() -> None:
     for handler in _shutdown_handlers:
         await handler()
+
+# Event names
+EVENT_ALLOCATION_COMPLETE = "allocation_complete"
+EVENT_MATCHING_COMPLETE = "matching_complete"
+EVENT_PROFILE_UPDATED = "profile_updated"
+
+class EventBus:
+    """Minimal event bus for internal notifications."""
+    async def publish(self, event_name: str, data: Any) -> None:
+        logger.info("Event published: %s", event_name)
+
+event_bus = EventBus()

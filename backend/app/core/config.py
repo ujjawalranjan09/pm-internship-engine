@@ -1,6 +1,7 @@
 """PM Internship Smart Allocation Engine - Configuration."""
 
 from functools import lru_cache
+from typing import Any
 
 from pydantic_settings import BaseSettings
 
@@ -9,8 +10,8 @@ class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
 
     # Application
-    APP_NAME: str = "PM Internship Allocation Engine"
-    APP_VERSION: str = "1.0.0"
+    PROJECT_NAME: str = "PM Internship Allocation Engine"
+    VERSION: str = "1.0.0"
     DEBUG: bool = False
     API_V1_PREFIX: str = "/api/v1"
 
@@ -58,7 +59,7 @@ class Settings(BaseSettings):
     FAIRNESS_GENDER_PARITY_TARGET: float = 0.40
 
     # CORS
-    CORS_ORIGINS: list[str] = ["http://localhost:3000", "http://localhost:8080"]
+    ALLOWED_HOSTS: list[str] = ["*"]
 
     class Config:
         env_file = ".env"
@@ -70,3 +71,5 @@ class Settings(BaseSettings):
 def get_settings() -> Settings:
     """Return cached application settings singleton."""
     return Settings()
+
+settings = get_settings()
