@@ -2,9 +2,9 @@
 
 from datetime import datetime
 
-from sqlalchemy import DateTime, func, JSON
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+from sqlalchemy import JSON, DateTime, func
 from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 # Portable JSON type for PostgreSQL (JSONB) and others (JSON/SQLite)
 JSONType = JSON().with_variant(JSONB, "postgresql")
