@@ -188,7 +188,6 @@ class MatchingPipeline:
                 candidate_ids,
                 opportunity_ids,
                 candidates,
-                district_counts,
             )
 
         # ── Stage 5: Constrained Optimization ─────────────────────
@@ -373,7 +372,6 @@ class MatchingPipeline:
         candidate_ids: list[str],
         opportunity_ids: list[str],
         candidates: list[dict[str, Any]],
-        district_counts: dict[str, int] | None,
     ) -> np.ndarray:
         """Stage 4: Apply fairness-aware re-ranking."""
         start = time.time()
@@ -406,7 +404,7 @@ class MatchingPipeline:
                 for i in nonzero
             ]
 
-            reranked = self._reranker.rerank(scored_list, cand_meta, district_counts=district_counts)
+            reranked = self._reranker.rerank(scored_list, cand_meta)
 
             for r in reranked:
                 i = candidate_ids.index(r.candidate_id) if r.candidate_id in candidate_ids else -1

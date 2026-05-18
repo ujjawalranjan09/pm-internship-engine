@@ -3,10 +3,9 @@
 from typing import Any
 
 from sqlalchemy import Integer, String
-from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.models.base import BaseModel
+from app.models.base import BaseModel, JSONType
 
 
 class AuditLog(BaseModel):
@@ -18,7 +17,7 @@ class AuditLog(BaseModel):
     action: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
     entity_type: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
     entity_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
-    details: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    details: Mapped[dict[str, Any] | None] = mapped_column(JSONType, nullable=True)
     ip_address: Mapped[str | None] = mapped_column(String(45), nullable=True)
 
     def __repr__(self) -> str:

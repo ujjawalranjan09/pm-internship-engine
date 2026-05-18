@@ -21,7 +21,7 @@ function Navbar() {
   const { user, isAuthenticated, logout } = useAuthStore();
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  const role = user?.role || "candidate";
+  const role = (user?.role === "admin" || user?.role === "employer" || user?.role === "candidate" ? user.role : "candidate") as keyof typeof NAV_LINKS;
   const links = NAV_LINKS[role] || [];
 
   return (

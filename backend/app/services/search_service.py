@@ -6,7 +6,7 @@ from typing import Any
 try:
     from opensearchpy import AsyncOpenSearch
 except ImportError:
-    from opensearchpy._async import AsyncOpenSearch
+    from opensearchpy._async import AsyncOpenSearch  # type: ignore[no-redef]
 
 from app.core.config import get_settings
 

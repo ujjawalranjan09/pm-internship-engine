@@ -3,10 +3,9 @@
 from typing import Any
 
 from sqlalchemy import Boolean, Float, ForeignKey, Integer, String, Text
-from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.models.base import BaseModel
+from app.models.base import BaseModel, JSONType
 
 
 class Opportunity(BaseModel):
@@ -20,15 +19,14 @@ class Opportunity(BaseModel):
     title: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     description: Mapped[str] = mapped_column(Text, nullable=False)
     sector: Mapped[str | None] = mapped_column(String(100), nullable=True, index=True)
-    required_skills: Mapped[list[str] | None] = mapped_column(JSONB, nullable=True, default=list)
     location: Mapped[str | None] = mapped_column(String(255), nullable=True)
     state: Mapped[str | None] = mapped_column(String(100), nullable=True, index=True)
     district: Mapped[str | None] = mapped_column(String(100), nullable=True, index=True)
     work_mode: Mapped[str | None] = mapped_column(String(20), nullable=True)  # remote/hybrid/onsite
     capacity: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     stipend: Mapped[float | None] = mapped_column(Float, nullable=True)
-    duration_months: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    eligibility_criteria: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True, default=dict)
+    required_skills: Mapped[list[str] | None] = mapped_column(JSONType, nullable=True, default=list)
+    eligibility_criteria: Mapped[dict[str, Any] | None] = mapped_column(JSONType, nullable=True, default=dict)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False, index=True)
 
     # Relationships
