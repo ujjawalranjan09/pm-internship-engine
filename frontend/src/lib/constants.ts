@@ -2,13 +2,28 @@ const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
 
 export const APP_NAME = "PM Internship Engine";
 
-export const NAV_LINKS = [
-  { label: "Home",          href: "/" },
-  { label: "Internships",   href: "/applicant/internships" },
-  { label: "My Matches",    href: "/applicant/matches" },
-  { label: "Applications", href: "/applicant/applications" },
-  { label: "Allocations",  href: "/applicant/allocations" },
-] as const;
+export const NAV_LINKS = {
+  candidate: [
+    { label: "Home",         href: "/" },
+    { label: "Internships",  href: "/applicant/internships" },
+    { label: "My Matches",   href: "/applicant/matches" },
+    { label: "Applications", href: "/applicant/applications" },
+    { label: "Allocations",  href: "/applicant/allocations" },
+  ],
+  employer: [
+    { label: "Home",         href: "/" },
+    { label: "Internships",  href: "/employer/internships" },
+    { label: "Applications", href: "/employer/applications" },
+    { label: "Analytics",    href: "/employer/analytics" },
+  ],
+  admin: [
+    { label: "Home",         href: "/" },
+    { label: "Allocation",   href: "/admin/allocation" },
+    { label: "Fairness",     href: "/admin/fairness" },
+    { label: "Policy",       href: "/admin/policy" },
+    { label: "Audit Log",    href: "/admin/audit" },
+  ],
+} as const;
 
 export const SECTORS = [
   "Technology",
