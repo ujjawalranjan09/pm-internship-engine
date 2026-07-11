@@ -1,0 +1,352 @@
+@import "tailwindcss";
+
+@theme {
+  /* ============================================
+     COLOR TOKENS — Base Government Palette
+     ============================================ */
+
+  /* Navy — Admin Identity */
+  --color-navy-50:  #eff6ff;
+  --color-navy-100: #dbeafe;
+  --color-navy-200: #bfdbfe;
+  --color-navy-300: #93c5fd;
+  --color-navy-400: #60a5fa;
+  --color-navy-500: #1e3a5f;
+  --color-navy-600: #1a2f4a;
+  --color-navy-700: #152642;
+  --color-navy-800: #0f1d35;
+  --color-navy-900: #0a1428;
+  --color-navy-950: #060d1a;
+
+  /* Saffron — Employer Identity */
+  --color-saffron-50:  #fff7ed;
+  --color-saffron-100: #ffedd5;
+  --color-saffron-200: #fed7aa;
+  --color-saffron-300: #fdba74;
+  --color-saffron-400: #fb923c;
+  --color-saffron-500: #f97316;
+  --color-saffron-600: #ea580c;
+  --color-saffron-700: #c2410c;
+  --color-saffron-800: #9a3412;
+  --color-saffron-900: #7c2d12;
+  --color-saffron-950: #431407;
+
+  /* Emerald — Candidate Identity */
+  --color-emerald-50:  #ecfdf5;
+  --color-emerald-100: #d1fae5;
+  --color-emerald-200: #a7f3d0;
+  --color-emerald-300: #6ee7b7;
+  --color-emerald-400: #34d399;
+  --color-emerald-500: #10b981;
+  --color-emerald-600: #059669;
+  --color-emerald-700: #047857;
+  --color-emerald-800: #065f46;
+  --color-emerald-900: #064e3b;
+  --color-emerald-950: #022c1e;
+
+  /* Semantic — Shared Across Roles */
+  --color-gov-success: #16a34a;
+  --color-gov-warning: #d97706;
+  --color-gov-error:   #dc2626;
+  --color-gov-info:    #2563eb;
+
+  /* Neutral Slate */
+  --color-slate-50:  #f8fafc;
+  --color-slate-100: #f1f5f9;
+  --color-slate-200: #e2e8f0;
+  --color-slate-300: #cbd5e1;
+  --color-slate-400: #94a3b8;
+  --color-slate-500: #64748b;
+  --color-slate-600: #475569;
+  --color-slate-700: #334155;
+  --color-slate-800: #1e293b;
+  --color-slate-900: #0f172a;
+  --color-slate-950: #020617;
+
+  /* ============================================
+     ROLE-AWARE CSS VARIABLES (Injected via Context)
+     ============================================ */
+
+  /* These are overridden per-role by RoleProvider */
+  --role-primary-50:  var(--color-navy-50);
+  --role-primary-100: var(--color-navy-100);
+  --role-primary-500: var(--color-navy-500);
+  --role-primary-600: var(--color-navy-600);
+  --role-primary-700: var(--color-navy-700);
+
+  --role-gradient: linear-gradient(135deg, var(--color-navy-500) 0%, var(--color-navy-600) 100%);
+
+  /* ============================================
+     SEMANTIC UI TOKENS (Derived from Role)
+     ============================================ */
+
+  --background: #ffffff;
+  --foreground: #0f172a;
+  --card: #ffffff;
+  --card-foreground: #0f172a;
+  --primary: var(--role-primary-500);
+  --primary-foreground: #ffffff;
+  --secondary: var(--role-primary-100);
+  --secondary-foreground: var(--role-primary-700);
+  --muted: #f1f5f9;
+  --muted-foreground: #64748b;
+  --accent: var(--role-primary-50);
+  --accent-foreground: var(--role-primary-700);
+  --border: #e2e8f0;
+  --input: #e2e8f0;
+  --ring: var(--role-primary-500);
+  --radius: 0.75rem;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px 0 rgb(15 23 42 / 0.05);
+  --shadow: 0 1px 3px 0 rgb(30 58 95 / 0.08), 0 1px 2px -1px rgb(30 58 95 / 0.06);
+  --shadow-md: 0 4px 6px -1px rgb(30 58 95 / 0.07), 0 2px 4px -2px rgb(30 58 95 / 0.04);
+  --shadow-lg: 0 10px 15px -3px rgb(30 58 95 / 0.08), 0 4px 6px -4px rgb(30 58 95 / 0.04);
+  --shadow-xl: 0 20px 25px -5px rgb(30 58 95 / 0.08), 0 8px 10px -6px rgb(30 58 95 / 0.04);
+
+  /* Spacing Scale */
+  --space-1: 0.25rem;   /* 4px */
+  --space-2: 0.5rem;    /* 8px */
+  --space-3: 0.75rem;   /* 12px */
+  --space-4: 1rem;      /* 16px */
+  --space-5: 1.25rem;   /* 20px */
+  --space-6: 1.5rem;    /* 24px */
+  --space-8: 2rem;      /* 32px */
+  --space-10: 2.5rem;   /* 40px */
+  --space-12: 3rem;     /* 48px */
+  --space-16: 4rem;     /* 64px */
+  --space-20: 5rem;     /* 80px */
+  --space-24: 6rem;     /* 96px */
+
+  /* Container Widths */
+  --container-sm: 640px;
+  --container-md: 1024px;
+  --container-lg: 1280px;
+
+  /* Sidebar & Header */
+  --sidebar-width: 16.25rem;  /* 260px */
+  --header-height: 4rem;      /* 64px */
+
+  /* Typography — will be applied via next/font */
+  --font-display: var(--font-space-grotesk);
+  --font-body: var(--font-dm-sans);
+  --font-mono: var(--font-jetbrains-mono);
+
+  /* Type Scale */
+  --text-display: clamp(1.75rem, 2vw + 1rem, 2.5rem);
+  --text-h1: clamp(1.5rem, 1.5vw + 1rem, 2rem);
+  --text-h2: 1.25rem;
+  --text-h3: 1.125rem;
+  --text-base: 0.9375rem;   /* 15px */
+  --text-sm: 0.8125rem;     /* 13px */
+  --text-xs: 0.75rem;       /* 12px */
+  --text-data: 0.8125rem;   /* 13px mono */
+
+  /* Line Heights */
+  --leading-tight: 1.1;
+  --leading-snug: 1.25;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.625;
+
+  /* Font Weights */
+  --font-weight-light: 300;
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  /* Transitions */
+  --duration-fast: 80ms;
+  --duration-base: 150ms;
+  --duration-slow: 200ms;
+  --duration-slower: 300ms;
+  --ease-out: ease-out;
+  --ease-in-out: ease-in-out;
+}
+
+:root {
+  --background: #ffffff;
+  --foreground: #0f172a;
+}
+
+* {
+  border-color: var(--border);
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-body), system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-size: var(--text-base);
+  line-height: var(--leading-normal);
+}
+
+@layer base {
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-display), system-ui, sans-serif;
+    font-weight: var(--font-weight-semibold);
+    line-height: var(--leading-tight);
+    color: var(--foreground);
+  }
+
+  h1 { font-size: var(--text-h1); }
+  h2 { font-size: var(--text-h2); }
+  h3 { font-size: var(--text-h3); }
+  h4 { font-size: var(--text-base); font-weight: var(--font-weight-medium); }
+
+  /* Data/numbers use mono font */
+  .text-data,
+  [data-font="mono"] {
+    font-family: var(--font-mono), ui-monospace, monospace;
+    font-variant-numeric: tabular-nums;
+    font-weight: var(--font-weight-medium);
+  }
+}
+
+@layer utilities {
+  /* Role-specific gradient backgrounds */
+  .gov-gradient-admin {
+    background: linear-gradient(135deg, var(--color-navy-500) 0%, var(--color-navy-600) 100%);
+  }
+  .gov-gradient-employer {
+    background: linear-gradient(135deg, var(--color-saffron-500) 0%, var(--color-saffron-600) 100%);
+  }
+  .gov-gradient-candidate {
+    background: linear-gradient(135deg, var(--color-emerald-500) 0%, var(--color-emerald-600) 100%);
+  }
+
+  /* Role-aware text colors */
+  .text-role-primary { color: var(--role-primary-600); }
+  .text-role-primary-hover { color: var(--role-primary-700); }
+  .bg-role-primary { background-color: var(--role-primary-500); }
+  .bg-role-primary-hover { background-color: var(--role-primary-600); }
+  .bg-role-50 { background-color: var(--role-primary-50); }
+  .bg-role-100 { background-color: var(--role-primary-100); }
+  .border-role { border-color: var(--role-primary-200); }
+  .ring-role { --tw-ring-color: var(--role-primary-500); }
+
+  /* Shadows using design tokens */
+  .gov-shadow { box-shadow: var(--shadow); }
+  .gov-shadow-md { box-shadow: var(--shadow-md); }
+  .gov-shadow-lg { box-shadow: var(--shadow-lg); }
+  .gov-shadow-xl { box-shadow: var(--shadow-xl); }
+
+  /* Card hover lift */
+  .card-hover {
+    transition: box-shadow var(--duration-base) var(--ease-out),
+                transform var(--duration-base) var(--ease-out);
+  }
+  .card-hover:hover {
+    box-shadow: var(--shadow-lg);
+    transform: translateY(-1px);
+  }
+
+  /* Table density modes */
+  .table-comfortable td { padding: 1rem; }
+  .table-compact td { padding: 0.75rem; font-size: var(--text-sm); }
+  .table-dense td { padding: 0.5rem; font-size: var(--text-sm); }
+
+  /* Sticky first column */
+  .sticky-col {
+    position: sticky;
+    left: 0;
+    background: var(--background);
+    z-index: 1;
+  }
+
+  /* Sorted column highlight */
+  .sorted-col {
+    background-color: var(--role-primary-50);
+    background-color: color-mix(in srgb, var(--role-primary-500) 5%, transparent);
+  }
+
+  /* Focus visible — role-aware */
+  .focus-ring:focus-visible {
+    outline: none;
+    ring: 2px;
+    ring-offset: 2px;
+    ring-color: var(--role-primary-500);
+  }
+
+  /* Scrollbar styling */
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-slate-300) transparent;
+  }
+  .scrollbar-thin::-webkit-scrollbar { width: 6px; height: 6px; }
+  .scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background-color: var(--color-slate-300);
+    border-radius: 3px;
+  }
+
+  /* Shimmer animation for skeletons */
+  @keyframes shimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+  }
+  .animate-shimmer {
+    background: linear-gradient(90deg, var(--muted) 25%, var(--muted-foreground) 37%, var(--muted) 63%);
+    background-size: 400% 100%;
+    animation: shimmer 1.5s linear infinite;
+  }
+
+  /* Allocation Pulse Animations */
+  @keyframes pulse-navy {
+    0%, 100% { opacity: 0.6; transform: scale(1); }
+    50% { opacity: 1; transform: scale(1.1); }
+  }
+  @keyframes spin-saffron {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+  @keyframes ripple-emerald {
+    0% { opacity: 0.8; transform: scale(0.5); }
+    100% { opacity: 0; transform: scale(2.5); }
+  }
+  .allocation-pulse-idle { animation: pulse-navy 3s ease-in-out infinite; }
+  .allocation-pulse-running { animation: spin-saffron 1s linear infinite; }
+  .allocation-pulse-complete { animation: ripple-emerald 1.5s ease-out forwards; }
+  .allocation-pulse-error { animation: none; opacity: 1; }
+
+  /* Staggered reveal */
+  .stagger-1 { animation-delay: 0ms; }
+  .stagger-2 { animation-delay: 100ms; }
+  .stagger-3 { animation-delay: 200ms; }
+  .stagger-4 { animation-delay: 300ms; }
+  .stagger-5 { animation-delay: 400ms; }
+  .stagger-6 { animation-delay: 500ms; }
+
+  /* Empty state illustrations */
+  .empty-illustration {
+    width: 120px;
+    height: 120px;
+    color: var(--muted-foreground);
+    opacity: 0.6;
+  }
+
+  /* Print styles */
+  @media print {
+    .no-print { display: none !important; }
+    .print-break { page-break-before: always; }
+  }
+}

@@ -1,0 +1,324 @@
+# ============================================================
+# CI Pipeline - PM Internship Smart Allocation Engine
+# Runs on every push and pull request
+# ============================================================
+
+name: CI
+
+on:
+  push:
+    branches: [main, develop, "feature/**"]
+  pull_request:
+    branches: [main, develop]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: "3.12"
+  NODE_VERSION: "22"
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ${{ github.repository }}
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  # ─────────────────────────────────────────────
+  # Backend Lint
+  # ─────────────────────────────────────────────
+  backend-lint:
+    name: "Backend: Lint (Ruff)"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Cache pip packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ runner.os }}-${{ hashFiles('backend/requirements*.txt') }}
+          restore-keys: |
+            pip-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install ruff
+
+      - name: Run Ruff lint
+        run: ruff check backend/
+
+      - name: Run Ruff format check
+        run: ruff format --check backend/
+
+  # ─────────────────────────────────────────────
+  # Backend Type Check
+  # ─────────────────────────────────────────────
+  backend-typecheck:
+    name: "Backend: Type Check (MyPy)"
+    runs-on: ubuntu-latest
+    needs: backend-lint
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Cache pip packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-mypy-${{ runner.os }}-${{ hashFiles('backend/requirements*.txt') }}
+          restore-keys: |
+            pip-mypy-${{ runner.os }}-
+
+      - name: Install lightweight dependencies for type checking
+        # Only install packages with type stubs; heavy ML libs are covered by
+        # ignore_missing_imports = true in pyproject.toml so we skip them here
+        # to avoid multi-minute installs of torch/sentence-transformers/mlflow.
+        run: |
+          python -m pip install --upgrade pip
+          pip install mypy==1.13.0
+          pip install \
+            "fastapi==0.115.0" \
+            "uvicorn[standard]==0.30.6" \
+            "sqlalchemy[asyncio]==2.0.35" \
+            "asyncpg==0.30.0" \
+            "pydantic>=2.0,<3.0" \
+            "pydantic-settings>=2.0,<3.0" \
+            "redis==5.1.1" \
+            "python-jose[cryptography]==3.3.0" \
+            "passlib[bcrypt]==1.7.4" \
+            "python-multipart==0.0.12" \
+            "alembic==1.13.3" \
+            "httpx==0.27.2" \
+            "python-dotenv==1.0.1" \
+            "pandas>=2.2,<3.0" \
+            "numpy>=1.26,<3.0"
+
+      - name: Run MyPy
+        run: cd backend && mypy app/ --config-file pyproject.toml
+
+  # ─────────────────────────────────────────────
+  # Backend Tests
+  # ─────────────────────────────────────────────
+  backend-test:
+    name: "Backend: Test (Pytest)"
+    runs-on: ubuntu-latest
+    needs: backend-lint
+    # No external services needed — unit tests use SQLite via conftest.py
+
+    env:
+      DATABASE_URL: sqlite+aiosqlite:///./test.db
+      SECRET_KEY: test-secret-key
+      TESTING: "1"
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Cache pip packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ runner.os }}-${{ hashFiles('backend/requirements*.txt') }}
+          restore-keys: |
+            pip-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements.txt -r backend/requirements-dev.txt
+
+      - name: Run tests with coverage
+        run: |
+          cd backend && pytest tests/ \
+            --cov=app \
+            --cov-report=xml:coverage.xml \
+            --cov-report=term-missing \
+            -v --tb=short
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-coverage
+          path: backend/coverage.xml
+
+  # ─────────────────────────────────────────────
+  # Frontend Lint
+  # ─────────────────────────────────────────────
+  frontend-lint:
+    name: "Frontend: Lint (ESLint)"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Cache npm packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: npm-${{ runner.os }}-${{ hashFiles('frontend/package-lock.json') }}
+          restore-keys: |
+            npm-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: cd frontend && npm ci
+
+      - name: Run ESLint
+        run: cd frontend && npx eslint . --max-warnings 0 || true
+
+  # ─────────────────────────────────────────────
+  # Frontend Type Check
+  # ─────────────────────────────────────────────
+  frontend-typecheck:
+    name: "Frontend: Type Check (tsc)"
+    runs-on: ubuntu-latest
+    needs: frontend-lint
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Cache npm packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: npm-${{ runner.os }}-${{ hashFiles('frontend/package-lock.json') }}
+          restore-keys: |
+            npm-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: cd frontend && npm ci
+
+      - name: Generate Next.js type declarations
+        # next-env.d.ts is auto-generated by the Next.js CLI and is gitignored.
+        # We create it here so tsc can resolve Next.js global type augmentations.
+        run: |
+          cat > frontend/next-env.d.ts << 'EOF'
+          /// <reference types="next" />
+          /// <reference types="next/image-types/global" />
+
+          // NOTE: This file should not be edited
+          // see https://nextjs.org/docs/app/building-your-application/configuring/typescript
+          EOF
+
+      - name: Run TypeScript type check
+        run: cd frontend && npx tsc --noEmit
+
+  # ─────────────────────────────────────────────
+  # Frontend Build
+  # ─────────────────────────────────────────────
+  frontend-build:
+    name: "Frontend: Build"
+    runs-on: ubuntu-latest
+    needs: [frontend-lint, frontend-typecheck]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Cache npm packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: npm-${{ runner.os }}-${{ hashFiles('frontend/package-lock.json') }}
+          restore-keys: |
+            npm-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: cd frontend && npm ci
+
+      - name: Build Next.js
+        run: cd frontend && npm run build
+        env:
+          NEXT_PUBLIC_API_URL: http://localhost:8000
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-build
+          path: |
+            frontend/.next/
+            frontend/public/
+          retention-days: 7
+
+  # ─────────────────────────────────────────────
+  # Docker Build Check
+  # ─────────────────────────────────────────────
+  docker-build:
+    name: "Docker: Build Check"
+    runs-on: ubuntu-latest
+    needs: [backend-test, frontend-build]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Cache Docker layers
+        uses: actions/cache@v4
+        with:
+          path: /tmp/.buildx-cache
+          key: buildx-${{ runner.os }}-${{ hashFiles('**/Dockerfile.*') }}
+          restore-keys: |
+            buildx-${{ runner.os }}-
+
+      - name: Build backend image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: infrastructure/docker/Dockerfile.backend
+          target: production
+          push: false
+          tags: pm-internship-backend:ci
+          cache-from: type=local,src=/tmp/.buildx-cache/backend
+          cache-to: type=local,dest=/tmp/.buildx-cache/backend-new,mode=max
+
+      - name: Build frontend image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: infrastructure/docker/Dockerfile.frontend
+          target: production
+          push: false
+          tags: pm-internship-frontend:ci
+          cache-from: type=local,src=/tmp/.buildx-cache/frontend
+          cache-to: type=local,dest=/tmp/.buildx-cache/frontend-new,mode=max
+
+      # Rotate cache
+      - name: Rotate Docker cache
+        run: |
+          rm -rf /tmp/.buildx-cache/backend
+          rm -rf /tmp/.buildx-cache/frontend
+          mv /tmp/.buildx-cache/backend-new /tmp/.buildx-cache/backend
+          mv /tmp/.buildx-cache/frontend-new /tmp/.buildx-cache/frontend

@@ -1,0 +1,211 @@
+# ============================================================
+# Docker Compose - Full Stack (Production-like)
+# PM Internship Smart Allocation Engine
+# ============================================================
+
+version: "3.9"
+
+x-common-env: &common-env
+  NODE_ENV: production
+  LOG_LEVEL: info
+
+x-healthcheck: &default-healthcheck
+  interval: 30s
+  timeout: 10s
+  retries: 3
+  start_period: 30s
+
+services:
+  # ─────────────────────────────────────────────
+  # PostgreSQL 16
+  # ─────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: pm-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-pm_internship}
+      POSTGRES_USER: ${POSTGRES_USER:-pm_admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=C --lc-ctype=C"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    healthcheck:
+      <<: *default-healthcheck
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-pm_admin} -d ${POSTGRES_DB:-pm_internship}"]
+    networks:
+      - pm-network
+
+  # ─────────────────────────────────────────────
+  # Redis 7
+  # ─────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: pm-redis
+    restart: unless-stopped
+    command: >
+      redis-server
+      --requirepass ${REDIS_PASSWORD:-changeme}
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+      --appendonly yes
+      --appendfsync everysec
+    volumes:
+      - redis_data:/data
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    healthcheck:
+      <<: *default-healthcheck
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-changeme}", "ping"]
+    networks:
+      - pm-network
+
+  # ─────────────────────────────────────────────
+  # OpenSearch 2.x
+  # ─────────────────────────────────────────────
+  opensearch:
+    image: opensearchproject/opensearch:2.12.0
+    container_name: pm-opensearch
+    restart: unless-stopped
+    environment:
+      - discovery.type=single-node
+      - bootstrap.memory_lock=true
+      - OPENSEARCH_INITIAL_ADMIN_PASSWORD=${OPENSEARCH_PASSWORD:-Ch@ngeme1!}
+      - "OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    volumes:
+      - opensearch_data:/usr/share/opensearch/data
+    ports:
+      - "${OPENSEARCH_PORT:-9200}:9200"
+      - "${OPENSEARCH_DASHBOARDS_PORT:-5601}:5601"
+    healthcheck:
+      <<: *default-healthcheck
+      test: ["CMD-SHELL", "curl -sf http://localhost:9200/_cluster/health || exit 1"]
+    networks:
+      - pm-network
+
+  # ─────────────────────────────────────────────
+  # Temporal Server (workflow orchestration)
+  # ─────────────────────────────────────────────
+  temporal:
+    image: temporalio/auto-setup:1.23.0
+    container_name: pm-temporal
+    restart: unless-stopped
+    environment:
+      - DB=postgres12
+      - DB_PORT=5432
+      - POSTGRES_USER=${POSTGRES_USER:-pm_admin}
+      - POSTGRES_PWD=${POSTGRES_PASSWORD:-changeme}
+      - POSTGRES_SEEDS=postgres
+      - DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/development-sql.yaml
+      - ENABLE_ES=true
+      - ES_SEEDS=opensearch
+      - ES_VERSION=v2
+      - TEMPORAL_ADDRESS=temporal:7233
+    depends_on:
+      postgres:
+        condition: service_healthy
+      opensearch:
+        condition: service_healthy
+    ports:
+      - "${TEMPORAL_PORT:-7233}:7233"
+      - "${TEMPORAL_WEB_PORT:-8080}:8080"
+    healthcheck:
+      <<: *default-healthcheck
+      test: ["CMD", "tctl", "--address", "temporal:7233", "cluster", "health"]
+    networks:
+      - pm-network
+
+  temporal-ui:
+    image: temporalio/ui:2.24.0
+    container_name: pm-temporal-ui
+    restart: unless-stopped
+    environment:
+      - TEMPORAL_ADDRESS=temporal:7233
+      - TEMPORAL_CORS_ORIGINS=http://localhost:3000
+    depends_on:
+      - temporal
+    ports:
+      - "${TEMPORAL_UI_PORT:-8081}:8080"
+    networks:
+      - pm-network
+
+  # ─────────────────────────────────────────────
+  # FastAPI Backend
+  # ─────────────────────────────────────────────
+  backend:
+    build:
+      context: ../..
+      dockerfile: infrastructure/docker/Dockerfile.backend
+      target: production
+    container_name: pm-backend
+    restart: unless-stopped
+    environment:
+      <<: *common-env
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-pm_admin}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-pm_internship}
+      REDIS_URL: redis://:${REDIS_PASSWORD:-changeme}@redis:6379/0
+      OPENSEARCH_URL: http://opensearch:9200
+      TEMPORAL_ADDRESS: temporal:7233
+      SECRET_KEY: ${SECRET_KEY:-change-me-in-production}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:3000}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      opensearch:
+        condition: service_healthy
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    healthcheck:
+      <<: *default-healthcheck
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+    networks:
+      - pm-network
+
+  # ─────────────────────────────────────────────
+  # Next.js Frontend
+  # ─────────────────────────────────────────────
+  frontend:
+    build:
+      context: ../..
+      dockerfile: infrastructure/docker/Dockerfile.frontend
+      target: production
+    container_name: pm-frontend
+    restart: unless-stopped
+    environment:
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+      NEXT_PUBLIC_WS_URL: ${NEXT_PUBLIC_WS_URL:-ws://localhost:8000}
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+    healthcheck:
+      <<: *default-healthcheck
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/"]
+    networks:
+      - pm-network
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  opensearch_data:
+    driver: local
+
+networks:
+  pm-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16
