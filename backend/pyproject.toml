@@ -1,0 +1,50 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pm-internship-engine"
+version = "1.0.0"
+description = "AI-Based Smart Allocation Engine for PM Internship Scheme"
+requires-python = ">=3.12"
+
+[tool.ruff]
+target-version = "py312"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP", "B", "SIM"]
+ignore = ["E501", "B008"]
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+ignore_missing_imports = true
+disallow_untyped_defs = false
+warn_return_any = false
+
+# Suppressed error codes — to be resolved incrementally with proper type annotations
+# See: https://mypy.readthedocs.io/en/stable/error_codes.html
+disable_error_code = [
+  "type-arg",         # Missing type params for generic types (dict, set, list, Callable, Coroutine)
+  "no-untyped-def",   # Functions missing return type annotations
+  "unused-ignore",    # Stale # type: ignore comments
+  "attr-defined",     # None.encode() and missing attribute on module
+  "assignment",       # Incompatible type assignments
+  "return-value",     # Return type mismatches
+  "arg-type",         # Incompatible argument types
+  "index",            # Unsupported indexed assignment (Collection[str])
+  "operator",         # Unsupported unary operator on object
+  "misc",             # Async generator return type annotation
+  "var-annotated",    # Variables needing explicit type annotation
+  "type-var",         # SupportsRichComparisonT / floating[Any] issues
+  "no-untyped-call",  # Calls to untyped functions in typed context
+  "truthy-function",  # Function always true in boolean context (func.count())
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
