@@ -137,7 +137,7 @@ export default function EmployerDashboard() {
                 </div>
               ))}
             </div>
-            <Link href="/employer/candidates">
+            <Link href="/employer/internships">
               <Button variant="ghost" size="sm" className="w-full mt-3">
                 View All <ArrowRight className="ml-1 h-4 w-4" />
               </Button>

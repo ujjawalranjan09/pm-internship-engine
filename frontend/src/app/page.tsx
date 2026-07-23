@@ -3,14 +3,16 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/use-auth";
+import { useAuthStore } from "@/stores/auth-store";
 import { LoadingSpinner } from "@/components/shared/loading-spinner";
 
 export default function HomePage() {
   const router = useRouter();
   const { isAuthenticated, isLoading, user } = useAuth();
+  const hasHydrated = useAuthStore((s) => s._hasHydrated);
 
   useEffect(() => {
-    if (isLoading) return;
+    if (!hasHydrated || isLoading) return;
     if (!isAuthenticated) {
       router.replace("/auth/login");
     } else if (user?.role === "admin") {
@@ -20,7 +22,7 @@ export default function HomePage() {
     } else {
       router.replace("/applicant");
     }
-  }, [isAuthenticated, isLoading, user, router]);
+  }, [hasHydrated, isAuthenticated, isLoading, user, router]);
 
   return (
     <div className="min-h-screen flex items-center justify-center">

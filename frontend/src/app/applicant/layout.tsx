@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/hooks/use-auth";
+import { useAuthStore } from "@/stores/auth-store";
 import { useNotifications } from "@/hooks/use-notifications";
 import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -35,18 +36,20 @@ export default function ApplicantLayout({ children }: { children: React.ReactNod
   const router = useRouter();
   const pathname = usePathname();
   const { user, isAuthenticated, isLoading, logout } = useAuth();
+  const hasHydrated = useAuthStore((s) => s._hasHydrated);
   const { data: notifications } = useNotifications();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const unreadCount = notifications?.filter((n) => !n.read).length ?? 0;
 
   useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
+    if (!hasHydrated || isLoading) return;
+    if (!isAuthenticated) {
       router.push("/auth/login");
     }
-  }, [isLoading, isAuthenticated, router]);
+  }, [hasHydrated, isLoading, isAuthenticated, router]);
 
-  if (isLoading) {
+  if (!hasHydrated || isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <LoadingSpinner size="lg" label="Loading..." />

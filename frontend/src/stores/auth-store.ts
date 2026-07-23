@@ -7,9 +7,11 @@ interface AuthStore {
   tokens: AuthTokens | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  _hasHydrated: boolean;
   setUser: (user: User | null) => void;
   setTokens: (tokens: AuthTokens | null) => void;
   setLoading: (loading: boolean) => void;
+  setHasHydrated: (hydrated: boolean) => void;
   login: (user: User, tokens: AuthTokens) => void;
   logout: () => void;
 }
@@ -20,13 +22,17 @@ export const useAuthStore = create<AuthStore>()(
       user: null,
       tokens: null,
       isAuthenticated: false,
-      isLoading: true,
+      isLoading: false,
+      _hasHydrated: false,
 
-      setUser: (user) => set({ user, isAuthenticated: !!user }),
+      setUser: (user) =>
+        set({ user, isAuthenticated: !!user, isLoading: false }),
 
       setTokens: (tokens) => set({ tokens }),
 
       setLoading: (isLoading) => set({ isLoading }),
+
+      setHasHydrated: (_hasHydrated) => set({ _hasHydrated }),
 
       login: (user, tokens) =>
         set({
@@ -51,6 +57,9 @@ export const useAuthStore = create<AuthStore>()(
         tokens: state.tokens,
         isAuthenticated: state.isAuthenticated,
       }),
+      onRehydrateStorage: () => (state) => {
+        if (state) state.setHasHydrated(true);
+      },
     }
   )
 );

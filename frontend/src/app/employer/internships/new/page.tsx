@@ -286,7 +286,12 @@ export default function NewInternshipPage() {
               <Input
                 label="Minimum Percentage"
                 type="number"
-                {...register("eligibilityCriteria.minPercentage", { valueAsNumber: true })}
+                {...register("eligibilityCriteria.minPercentage", {
+                  // valueAsNumber converts "" to NaN, which fails z.number().optional().
+                  // Use setValueAs to convert empty string to undefined so .optional() passes.
+                  setValueAs: (v) => (v === "" || v === null || v === undefined ? undefined : Number(v)),
+                })}
+                error={errors.eligibilityCriteria?.minPercentage?.message}
                 placeholder="e.g., 60"
               />
             </div>

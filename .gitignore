@@ -77,6 +77,13 @@ coverage.xml
 junit/
 junit.xml
 
+# Playwright artifacts
+playwright-report/
+playwright-results.json
+test-results/
+blob-report/
+playwright/.cache/
+
 # ─────────────────────────────────────────────
 # IDEs & Editors
 # ─────────────────────────────────────────────

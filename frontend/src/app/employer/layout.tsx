@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/hooks/use-auth";
+import { useNotifications } from "@/hooks/use-notifications";
+import { useAuthStore } from "@/stores/auth-store";
 import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -22,23 +24,28 @@ import {
 
 const navLinks = [
   { label: "Dashboard", href: "/employer", icon: LayoutDashboard },
-  { label: "My Opportunities", href: "/employer/opportunities", icon: Briefcase },
-  { label: "Candidates", href: "/employer/candidates", icon: Users },
+  { label: "My Internships", href: "/employer/internships", icon: Briefcase },
+  { label: "Feedback", href: "/employer/feedback", icon: Users },
 ];
 
 export default function EmployerLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const { user, isAuthenticated, isLoading, logout } = useAuth();
+  const hasHydrated = useAuthStore((s) => s._hasHydrated);
+  const { data: notifications } = useNotifications();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
+  const unreadCount = notifications?.filter((n) => !n.read).length ?? 0;
+
   useEffect(() => {
-    if (!isLoading && (!isAuthenticated || user?.role !== "employer")) {
+    if (!hasHydrated || isLoading) return;
+    if (!isAuthenticated || user?.role !== "employer") {
       router.push("/auth/login");
     }
-  }, [isLoading, isAuthenticated, user, router]);
+  }, [hasHydrated, isLoading, isAuthenticated, user, router]);
 
-  if (isLoading) {
+  if (!hasHydrated || isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <LoadingSpinner size="lg" label="Loading employer portal..." />
@@ -71,8 +78,16 @@ export default function EmployerLayout({ children }: { children: React.ReactNode
           </div>
 
           <div className="flex items-center gap-3">
-            <button className="relative p-2 rounded-md hover:bg-muted transition-colors">
+            <button
+              className="relative p-2 rounded-md hover:bg-muted transition-colors"
+              aria-label={`Notifications${unreadCount > 0 ? ` (${unreadCount} unread)` : ""}`}
+            >
               <Bell className="h-5 w-5 text-muted-foreground" />
+              {unreadCount > 0 && (
+                <span className="absolute top-1 right-1 h-4 w-4 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
+                  {unreadCount > 9 ? "9+" : unreadCount}
+                </span>
+              )}
             </button>
             <div className="flex items-center gap-2">
               <Avatar name={user.name ?? "Employer"} size="sm" />

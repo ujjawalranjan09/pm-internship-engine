@@ -57,12 +57,14 @@ export async function register(request: RegisterRequest): Promise<{ user: User; 
   }
 }
 
-export async function getCurrentUser(): Promise<User> {
+export async function getCurrentUser(): Promise<User | null> {
   try {
     const response = await apiGet<ApiResponse<User>>(API_ROUTES.AUTH.ME);
     return response.data;
   } catch {
-    return MOCK_USER;
+    // No backend available — return null so the Zustand-persisted user
+    // (set during login) is used instead of being overridden by MOCK_USER.
+    return null;
   }
 }
 
